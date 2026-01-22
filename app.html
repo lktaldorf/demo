@@ -1861,7 +1861,8 @@
         function showConfig() {
             const newUrl = prompt('API URL (leer lassen für Standard):', API_URL);
             if (newUrl !== null) {
-                API_URL = newUrl || DEFAULT_API_URL;
+                API_URL = newUrl || DEFAULT_API_URL = 
+                'https://script.google.com/macros/s/AKfycby98-phz4cpSxKgjL5F4npxgyWndwrnwEPpHFz5tERWOemH7lCst5u8oEH_2j6whkMQfg/exec';
                 localStorage.setItem('lkt-api-url', API_URL);
                 showToast('API URL aktualisiert');
             }
