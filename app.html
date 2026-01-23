@@ -593,8 +593,13 @@
         // ============================================================
         // OFFLINE QUEUE
         // ============================================================
-        function addToOfflineQueue(action) {
-            offlineQueue.push({ ...action, timestamp: Date.now(), id: Date.now() + '-' + Math.random().toString(36).substr(2, 9) });
+        function addToOfflineQueue(actionData) {
+            const queueItem = {
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                timestamp: Date.now(),
+                data: actionData
+            };
+            offlineQueue.push(queueItem);
             localStorage.setItem('lkt-offline-queue', JSON.stringify(offlineQueue));
             updateOnlineStatus();
         }
@@ -606,7 +611,7 @@
             let successCount = 0;
             for (const item of queue) {
                 try {
-                    const result = await apiPost(item.action);
+                    const result = await apiPost(item.data);
                     if (!result.error) {
                         offlineQueue = offlineQueue.filter(q => q.id !== item.id);
                         successCount++;
@@ -1012,11 +1017,12 @@
                     await apiPost({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
                     showToast('Als abwesend markiert');
                 } catch (e) {
-                    addToOfflineQueue({ action: { action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment } });
-                    showToast('📴 Offline gespeichert');
+                    addToOfflineQueue({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
+                    showToast('📴 Offline gespeichert - wird später synchronisiert');
                 }
             } else {
-                addToOfflineQueue({ action: { action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment } });
+                addToOfflineQueue({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
+                showToast('📴 Offline gespeichert - wird später synchronisiert');
             }
         }
         
@@ -1030,9 +1036,13 @@
             
             if (navigator.onLine && !isOfflineMode) {
                 try { await apiPost({ action: 'resetAttendance', name: currentUser.name, eventId: eventId }); }
-                catch (e) { addToOfflineQueue({ action: { action: 'resetAttendance', name: currentUser.name, eventId: eventId } }); }
+                catch (e) { 
+                    addToOfflineQueue({ action: 'resetAttendance', name: currentUser.name, eventId: eventId }); 
+                    showToast('📴 Wird später synchronisiert');
+                }
             } else {
-                addToOfflineQueue({ action: { action: 'resetAttendance', name: currentUser.name, eventId: eventId } });
+                addToOfflineQueue({ action: 'resetAttendance', name: currentUser.name, eventId: eventId });
+                showToast('📴 Wird später synchronisiert');
             }
         }
         
@@ -1161,11 +1171,12 @@
                     await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
                     showToast('✓ Eingecheckt!');
                 } catch (e) {
-                    addToOfflineQueue({ action: { action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' } });
-                    showToast('📴 Offline gespeichert');
+                    addToOfflineQueue({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                    showToast('📴 Offline gespeichert - wird später synchronisiert');
                 }
             } else {
-                addToOfflineQueue({ action: { action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' } });
+                addToOfflineQueue({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                showToast('📴 Offline gespeichert - wird später synchronisiert');
             }
         }
         
