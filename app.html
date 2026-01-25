@@ -152,6 +152,21 @@
         .kommentar-input input { flex: 1; padding: 0.75rem; font-size: 1rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-dark); color: var(--text-primary); -webkit-appearance: none; appearance: none; }
         .kommentar-input input:focus { outline: none; border-color: var(--accent-yellow); background: var(--bg-card); }
         .kommentar-input input::placeholder { color: var(--text-secondary); }
+        .setting-item { margin-bottom: 1rem; }
+        .setting-desc { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; margin-left: 0.5rem; }
+        .toggle-label { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .toggle-label input { display: none; }
+        .toggle-slider { width: 50px; height: 26px; background: var(--border-color); border-radius: 13px; position: relative; transition: 0.3s; }
+        .toggle-slider::before { content: ''; position: absolute; width: 22px; height: 22px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+        .toggle-label input:checked + .toggle-slider { background: var(--accent-green); }
+        .toggle-label input:checked + .toggle-slider::before { transform: translateX(24px); }
+        .zusage-btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; cursor: pointer; border: 2px solid var(--accent-green); background: transparent; color: var(--accent-green); transition: all 0.2s; }
+        .zusage-btn.active { background: var(--accent-green); color: white; }
+        .zusage-btn:hover { opacity: 0.8; }
+        .register-member { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .register-member .status { font-size: 1.2rem; }
+        .register-member.zugesagt { border-left: 3px solid var(--accent-green); }
+        .register-member.nicht-zugesagt { border-left: 3px solid var(--border-color); opacity: 0.7; }
     </style>
 </head>
 <body>
@@ -174,7 +189,7 @@
                     </button>
                     <button class="role-btn" onclick="selectRole('gericht')">
                         <div class="icon">⚖️</div>
-                        <div class="title">Hohes Gericht</div>
+                        <div class="title">Admin</div>
                         <div class="desc">Admin-Zugang mit speziellem PIN</div>
                     </button>
                 </div>
@@ -198,7 +213,7 @@
                 </p>
             </div>
             <div id="setup-step-5" class="hidden">
-                <h3 style="margin-bottom: 1rem;">⚖️ Hohes Gericht Login</h3>
+                <h3 style="margin-bottom: 1rem;">⚖️ Admin Login</h3>
                 <div class="input-group"><label>Gericht-PIN</label><input type="password" id="gericht-pin-input" placeholder="****"></div>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Nur für das Hohe Gericht</p>
                 <button class="btn btn-primary btn-block" onclick="loginGericht()">Einloggen</button>
@@ -218,9 +233,10 @@
         <nav class="nav-tabs" id="member-nav">
             <button class="nav-tab active" data-tab="events">📅 Auftritte</button>
             <button class="nav-tab" data-tab="brett">📋 Brett</button>
-            <button class="nav-tab" data-tab="scanner">📷 Scannen</button>
+            <button class="nav-tab" data-tab="register-view">🎵 Register</button>
+            <button class="nav-tab hidden" data-tab="scanner" id="nav-scanner">📷 Scannen</button>
             <button class="nav-tab" data-tab="profile">👤 Profil</button>
-            <button class="nav-tab" data-tab="anzeige">⚖️ Anzeige</button>
+            <button class="nav-tab hidden" data-tab="anzeige" id="nav-anzeige">⚖️ Anzeige</button>
             <button class="nav-tab" data-tab="stats">📊 Stats</button>
         </nav>
         
@@ -253,6 +269,22 @@
                     <button class="btn btn-primary btn-block" onclick="submitBrettPost()">📤 Veröffentlichen</button>
                 </div>
                 <div id="brett-posts-member"></div>
+            </div>
+            
+            <!-- Register View Tab -->
+            <div id="register-view-tab" class="screen">
+                <div class="section-header"><h2>🎵 Mein Register</h2></div>
+                <div class="input-group">
+                    <label>Auftritt auswählen</label>
+                    <select id="register-event-select" onchange="loadRegisterZusagen()">
+                        <option value="">-- Auftritt wählen --</option>
+                    </select>
+                </div>
+                <div id="register-zusagen-info" class="info-box hidden">
+                    <p><strong id="register-name-display">-</strong></p>
+                    <p id="register-zusagen-count">0 / 0 haben zugesagt</p>
+                </div>
+                <div id="register-members-list"></div>
             </div>
             
             <!-- Scanner Tab -->
@@ -355,7 +387,7 @@
             </div>
             
             <!-- Schwarzes Brett Tab (Gericht) -->
-            <div id="brett-tab-gericht" class="screen">
+            <div id="brett-gericht-tab" class="screen">
                 <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
                 <div class="card">
                     <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
@@ -421,8 +453,29 @@
             <div id="settings-tab" class="screen">
                 <div class="section-header"><h2>⚙️ Vereinseinstellungen</h2></div>
                 
+                <!-- App-Modi - nur für Admin -->
+                <div class="card" id="app-modi-section">
+                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">📱 App-Modi <span style="font-size: 0.7rem; color: var(--text-secondary);">(nur Admin)</span></h3>
+                    <div class="setting-item">
+                        <label class="toggle-label">
+                            <span>📷 QR-Scanner aktiviert</span>
+                            <input type="checkbox" id="setting-qr-scanner" onchange="saveAppSettings()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="setting-desc">Wenn deaktiviert, können Mitglieder direkt "Ich bin dabei" klicken</p>
+                    </div>
+                    <div class="setting-item">
+                        <label class="toggle-label">
+                            <span>⚖️ Strafen-System aktiviert</span>
+                            <input type="checkbox" id="setting-strafen" onchange="saveAppSettings()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <p class="setting-desc">Wenn deaktiviert, werden Anzeigen-Funktionen ausgeblendet</p>
+                    </div>
+                </div>
+                
                 <!-- Busse verwalten -->
-                <div class="card">
+                <div class="card" style="margin-top: 1rem;">
                     <h3 style="color: var(--accent-blue); margin-bottom: 1rem;">🚌 Busse verwalten</h3>
                     <div id="busse-list"></div>
                     <div class="input-group" style="margin-top: 1rem;">
@@ -499,7 +552,7 @@
                 <select id="member-detail-role">
                     <option value="mitglied">Mitglied</option>
                     <option value="chef">Chef (sieht alles außer Strafen)</option>
-                    <option value="gericht">Hohes Gericht (voller Zugriff)</option>
+                    <option value="gericht">Admin (voller Zugriff)</option>
                 </select>
             </div>
             <button class="btn btn-primary btn-block" onclick="saveMemberRole()" id="save-role-btn">Rolle speichern</button>
@@ -531,17 +584,23 @@
         let statsData = {};
         let busseData = [];
         let registerData = [];
-        let geplantData = {};
+        let zusagenData = {};
         let allMembersData = [];
         let allMemberStats = {};
         let allAnzeigenData = [];
         let brettPostsData = [];
         let kommentareData = {};
         
+        // App Settings
+        let appSettings = {
+            qrScannerEnabled: true,
+            strafenEnabled: true
+        };
+        
         let currentAbsentEventId = null;
         let currentAttendanceEventId = null;
         let attendanceByMember = {};
-        let geplantByMember = {};
+        let zusagenByMember = {};
         let pendingScanEventId = null;
         let currentDetailMember = null;
         
@@ -679,12 +738,24 @@
                 if (result.error) { showToast('Name nicht gefunden', true); hideLoading(); return; }
                 if (String(result.pin) !== String(pin)) { showToast('Falscher PIN', true); hideLoading(); return; }
                 
-                // Rolle bestimmt die Ansicht
-                const rolle = result.rolle || 'mitglied';
-                if (rolle === 'gericht' || rolle === 'chef') {
-                    currentUser = { role: 'gericht', name: result.name, pin: pin, actualRole: rolle, busId: result.busId, registerId: result.registerId };
+                // Berechtigungen laden
+                const permResult = await apiGet('getMemberPermissions', { name: name });
+                const permissions = permResult.permissions || {};
+                const rollenId = result.rollenId || permResult.rollenId || 'ROLE-MITGLIED';
+                
+                // Admin-Rollen bekommen gericht-View, andere member-View
+                if (permissions.isAdmin || permissions.canManageMembers || permissions.canManageEvents) {
+                    currentUser = { 
+                        role: 'gericht', name: result.name, pin: pin, 
+                        rollenId: rollenId, permissions: permissions,
+                        busId: result.busId, registerId: result.registerId, memberId: result.memberId
+                    };
                 } else {
-                    currentUser = { role: 'member', name: result.name, pin: pin, actualRole: 'mitglied', busId: result.busId, registerId: result.registerId };
+                    currentUser = { 
+                        role: 'member', name: result.name, pin: pin, 
+                        rollenId: rollenId, permissions: permissions,
+                        busId: result.busId, registerId: result.registerId, memberId: result.memberId
+                    };
                 }
                 
                 localStorage.setItem('lkt-user', JSON.stringify(currentUser));
@@ -697,12 +768,20 @@
             const pin = document.getElementById('gericht-pin-input').value.trim();
             
             if (pin === '8356') {
-                currentUser = { role: 'gericht', name: 'Hohes Gericht', actualRole: 'gericht' };
+                currentUser = { 
+                    role: 'gericht', name: 'Admin', 
+                    rollenId: 'ROLE-ADMIN', 
+                    permissions: {
+                        isAdmin: true, canViewAllMembers: true, canViewAllAttendance: true,
+                        canViewOwnRegister: true, canManageEvents: true, canManageMembers: true,
+                        canManageRoles: true, canManageAnzeigen: true, canCreateForumCategories: true
+                    }
+                };
             } else {
                 showToast('Falscher PIN', true); return;
             }
             localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-            showToast('Willkommen, Hohes Gericht!');
+            showToast('Willkommen, Admin!');
             showMainApp();
         }
         
@@ -723,29 +802,32 @@
             commentsData = {};
             
             const userInfo = document.getElementById('user-info');
+            const permissions = currentUser.permissions || {};
             
             if (currentUser.role === 'gericht') {
-                if (currentUser.actualRole === 'chef') {
-                    userInfo.textContent = '👔 ' + currentUser.name + ' (Chef)';
-                    userInfo.classList.add('chef');
-                } else {
-                    userInfo.textContent = '⚖️ ' + currentUser.name;
+                // Admin/Verwaltung-Ansicht
+                if (permissions.isAdmin) {
+                    userInfo.textContent = '🔧 ' + currentUser.name + ' (Admin)';
                     userInfo.classList.add('gericht');
+                } else {
+                    userInfo.textContent = '👔 ' + currentUser.name;
+                    userInfo.classList.add('chef');
                 }
                 document.getElementById('member-nav').classList.add('hidden');
                 document.getElementById('gericht-nav').classList.remove('hidden');
                 document.getElementById('member-screens').classList.add('hidden');
                 document.getElementById('gericht-screens').classList.remove('hidden');
-                document.getElementById('config-btn').textContent = '⚙️'; // Einstellungen für Gericht
+                document.getElementById('config-btn').textContent = '⚙️';
                 
-                // Hide Anzeigen for Chef
-                if (currentUser.actualRole === 'chef') {
-                    document.querySelector('[data-tab="anzeigen"]').classList.add('hidden');
+                // Tabs basierend auf Berechtigungen ein/ausblenden
+                if (!permissions.canManageAnzeigen) {
+                    const anzeigenTab = document.querySelector('[data-tab="anzeigen"]');
+                    if (anzeigenTab) anzeigenTab.classList.add('hidden');
                 }
                 
                 initGerichtNav();
             } else {
-                document.getElementById('config-btn').textContent = '🔄'; // Sync für Mitglieder
+                document.getElementById('config-btn').textContent = '🔄';
                 userInfo.textContent = '👤 ' + currentUser.name;
                 initMemberNav();
                 eventsData = getOfflineEvents();
@@ -798,7 +880,19 @@
         // ============================================================
         async function loadData() {
             try {
-                // Load busse and register first
+                // Load settings first
+                if (navigator.onLine && !isOfflineMode) {
+                    try {
+                        const settingsResult = await apiGet('getSettings');
+                        if (settingsResult.settings) {
+                            appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false';
+                            appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false';
+                        }
+                        applyAppSettings();
+                    } catch (e) { console.log('Could not load settings'); }
+                }
+                
+                // Load busse and register
                 if (navigator.onLine && !isOfflineMode) {
                     try {
                         const busseResult = await apiGet('getBusse');
@@ -829,14 +923,15 @@
                                 localStorage.setItem('lkt-user', JSON.stringify(currentUser));
                                 saveLocalAttendance();
                             }
-                            // Load geplante teilnahme
-                            const geplantResult = await apiGet('getGeplanteTeilnahme');
-                            geplantData = geplantResult.geplant || {};
+                            // Load Zusagen
+                            const zusagenResult = await apiGet('getZusagen');
+                            zusagenData = zusagenResult.zusagen || {};
                         } catch (e) { loadLocalAttendance(); }
                         if (offlineQueue.length > 0) syncOfflineQueue();
                     } else { loadLocalAttendance(); }
                     renderMemberView();
                     populateProfileSelects();
+                    populateRegisterEventSelect();
                     loadBrettPosts('member');
                 } else {
                     if (!isOfflineMode && navigator.onLine) {
@@ -847,6 +942,76 @@
             } catch (e) {
                 console.error('loadData error:', e);
                 if (eventsData.length === 0) eventsData = getOfflineEvents();
+            }
+        }
+        
+        function applyAppSettings() {
+            // Scanner Tab anzeigen/verstecken
+            const scannerNav = document.getElementById('nav-scanner');
+            if (scannerNav) {
+                if (appSettings.qrScannerEnabled) {
+                    scannerNav.classList.remove('hidden');
+                } else {
+                    scannerNav.classList.add('hidden');
+                }
+            }
+            
+            // Anzeige Tab anzeigen/verstecken
+            const anzeigeNav = document.getElementById('nav-anzeige');
+            if (anzeigeNav) {
+                if (appSettings.strafenEnabled) {
+                    anzeigeNav.classList.remove('hidden');
+                } else {
+                    anzeigeNav.classList.add('hidden');
+                }
+            }
+            
+            // Anzeigen-Tab in Gericht Navigation
+            const gerichtAnzeigenNav = document.querySelector('#gericht-nav [data-tab="anzeigen"]');
+            if (gerichtAnzeigenNav) {
+                if (appSettings.strafenEnabled) {
+                    gerichtAnzeigenNav.classList.remove('hidden');
+                } else {
+                    gerichtAnzeigenNav.classList.add('hidden');
+                }
+            }
+            
+            // App-Modi Section nur für Admin (nicht Chef)
+            const appModiSection = document.getElementById('app-modi-section');
+            if (appModiSection) {
+                if (currentUser && currentUser.actualRole === 'gericht') {
+                    appModiSection.classList.remove('hidden');
+                } else {
+                    appModiSection.classList.add('hidden');
+                }
+            }
+            
+            // Settings-Checkboxen aktualisieren
+            const qrCheckbox = document.getElementById('setting-qr-scanner');
+            const strafenCheckbox = document.getElementById('setting-strafen');
+            if (qrCheckbox) qrCheckbox.checked = appSettings.qrScannerEnabled;
+            if (strafenCheckbox) strafenCheckbox.checked = appSettings.strafenEnabled;
+        }
+        
+        async function saveAppSettings() {
+            const qrEnabled = document.getElementById('setting-qr-scanner').checked;
+            const strafenEnabled = document.getElementById('setting-strafen').checked;
+            
+            appSettings.qrScannerEnabled = qrEnabled;
+            appSettings.strafenEnabled = strafenEnabled;
+            
+            try {
+                await apiPost({
+                    action: 'updateSettings',
+                    settings: {
+                        qrScannerEnabled: qrEnabled ? 'true' : 'false',
+                        strafenEnabled: strafenEnabled ? 'true' : 'false'
+                    }
+                });
+                applyAppSettings();
+                showToast('Einstellungen gespeichert!');
+            } catch (e) {
+                showToast('Fehler beim Speichern', true);
             }
         }
         
@@ -875,12 +1040,12 @@
                 const status = attendanceData[event.id];
                 const isAttended = status === true;
                 const isAbsent = status === false;
-                const isPlanned = geplantData[event.id] && geplantData[event.id][currentUser.name];
+                const hasZugesagt = zusagenData[event.id] && zusagenData[event.id][currentUser.name];
                 
                 let cardClass = 'card event-card';
                 if (isAttended) cardClass += ' attended';
                 else if (isAbsent) cardClass += ' absent';
-                else if (isPlanned) cardClass += ' planned';
+                else if (hasZugesagt) cardClass += ' planned';
                 
                 html += '<div class="' + cardClass + '">';
                 html += '<div class="date">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
@@ -889,11 +1054,17 @@
                 
                 if (isAttended) html += '<span class="status present">✓ Teilgenommen</span>';
                 if (isAbsent) html += '<span class="status absent">✗ Nicht dabei</span>';
-                if (isPlanned && !isAttended && !isAbsent) html += '<span class="status planned">📅 Geplant</span>';
+                if (hasZugesagt && !isAttended && !isAbsent) html += '<span class="status planned">✓ Zugesagt</span>';
                 
                 html += '<div class="actions">';
                 if (!isAttended && !isAbsent) {
-                    html += '<button class="btn plan-btn ' + (isPlanned ? 'active' : 'btn-secondary') + '" onclick="toggleGeplant(\'' + event.id + '\')">' + (isPlanned ? '📅 Geplant' : '📅 Planen') + '</button>';
+                    // Wenn Scanner deaktiviert: "Ich bin dabei" Button zeigen
+                    if (!appSettings.qrScannerEnabled) {
+                        html += '<button class="btn btn-primary" onclick="directCheckIn(\'' + event.id + '\')">✓ Ich bin dabei</button>';
+                    } else {
+                        // Zusagen-Button
+                        html += '<button class="btn zusage-btn ' + (hasZugesagt ? 'active' : '') + '" onclick="toggleZusage(\'' + event.id + '\')">' + (hasZugesagt ? '✓ Zugesagt' : '+ Zusagen') + '</button>';
+                    }
                     html += '<button class="btn btn-danger" onclick="markAbsentEvent(\'' + event.id + '\')">✗ Absagen</button>';
                 } else {
                     html += '<button class="btn btn-secondary" onclick="resetEvent(\'' + event.id + '\')">↩ Zurücksetzen</button>';
@@ -902,6 +1073,18 @@
             });
             
             container.innerHTML = html || '<div class="empty-state">Keine Auftritte</div>';
+        }
+        
+        async function directCheckIn(eventId) {
+            // Direkt einchecken ohne QR-Code
+            if (currentUser.busId) {
+                await checkInEvent(eventId, currentUser.busId);
+            } else {
+                // Bus-Auswahl zeigen
+                pendingScanEventId = eventId;
+                document.getElementById('checkin-bus-select').value = '';
+                document.getElementById('bus-select-modal').classList.add('active');
+            }
         }
         
         function updateMemberStats() {
@@ -915,21 +1098,85 @@
         }
         
         // ============================================================
-        // GEPLANTE TEILNAHME
+        // ZUSAGEN
         // ============================================================
-        async function toggleGeplant(eventId) {
-            const current = geplantData[eventId] && geplantData[eventId][currentUser.name];
+        async function toggleZusage(eventId) {
+            const current = zusagenData[eventId] && zusagenData[eventId][currentUser.name];
             const newValue = !current;
             
-            if (!geplantData[eventId]) geplantData[eventId] = {};
-            geplantData[eventId][currentUser.name] = newValue;
+            if (!zusagenData[eventId]) zusagenData[eventId] = {};
+            zusagenData[eventId][currentUser.name] = newValue;
             renderEventsList();
             
             if (navigator.onLine && !isOfflineMode) {
                 try {
-                    await apiPost({ action: 'setGeplanteTeilnahme', name: currentUser.name, eventId: eventId, geplant: newValue });
-                } catch (e) { console.error('Geplant error:', e); }
+                    await apiPost({ action: 'setZusage', name: currentUser.name, eventId: eventId, zugesagt: newValue });
+                } catch (e) { console.error('Zusage error:', e); }
             }
+        }
+        
+        // ============================================================
+        // REGISTER ZUSAGEN VIEW
+        // ============================================================
+        function populateRegisterEventSelect() {
+            const select = document.getElementById('register-event-select');
+            if (!select) return;
+            let html = '<option value="">-- Auftritt wählen --</option>';
+            eventsData.forEach(e => {
+                html += '<option value="' + e.id + '">' + e.name + ' (' + (e.date || '') + ')</option>';
+            });
+            select.innerHTML = html;
+        }
+        
+        async function loadRegisterZusagen() {
+            const eventId = document.getElementById('register-event-select').value;
+            const infoBox = document.getElementById('register-zusagen-info');
+            const listContainer = document.getElementById('register-members-list');
+            
+            if (!eventId) {
+                infoBox.classList.add('hidden');
+                listContainer.innerHTML = '';
+                return;
+            }
+            
+            if (!currentUser.registerId) {
+                listContainer.innerHTML = '<div class="empty-state">Du hast noch kein Register in deinem Profil ausgewählt.</div>';
+                infoBox.classList.add('hidden');
+                return;
+            }
+            
+            // Finde Register-Name
+            const register = registerData.find(r => r.id === currentUser.registerId);
+            document.getElementById('register-name-display').textContent = register ? '🎵 ' + register.name : 'Mein Register';
+            
+            showLoading();
+            try {
+                const result = await apiGet('getRegisterZusagen', { eventId: eventId, registerId: currentUser.registerId });
+                
+                if (result.error) {
+                    listContainer.innerHTML = '<div class="empty-state">' + result.error + '</div>';
+                    infoBox.classList.add('hidden');
+                } else {
+                    const members = result.members || [];
+                    document.getElementById('register-zusagen-count').textContent = result.zugesagt + ' / ' + result.total + ' haben zugesagt';
+                    infoBox.classList.remove('hidden');
+                    
+                    let html = '';
+                    // Erst die zugesagten
+                    members.filter(m => m.zugesagt).forEach(m => {
+                        html += '<div class="register-member zugesagt"><span>' + m.name + '</span><span class="status">✓</span></div>';
+                    });
+                    // Dann die nicht zugesagten
+                    members.filter(m => !m.zugesagt).forEach(m => {
+                        html += '<div class="register-member nicht-zugesagt"><span>' + m.name + '</span><span class="status">—</span></div>';
+                    });
+                    listContainer.innerHTML = html || '<div class="empty-state">Keine Mitglieder in diesem Register</div>';
+                }
+            } catch (e) {
+                listContainer.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+                infoBox.classList.add('hidden');
+            }
+            hideLoading();
         }
         
         // ============================================================
@@ -1122,15 +1369,14 @@
                         showToast('Bereits eingecheckt!', true);
                         return;
                     }
-                    pauseScanner(); // Nur pausieren während Check-in
+                    
+                    pauseScanner();
                     
                     // Check if member has fixed bus
                     if (currentUser.busId) {
-                        // Has fixed bus - check in directly
                         await checkInEvent(eventId, currentUser.busId);
                         showScanSuccess(event.name);
                     } else {
-                        // No fixed bus - show bus selection
                         pendingScanEventId = eventId;
                         document.getElementById('checkin-bus-select').value = '';
                         document.getElementById('bus-select-modal').classList.add('active');
@@ -1144,7 +1390,7 @@
         function cancelBusSelect() {
             document.getElementById('bus-select-modal').classList.remove('active');
             pendingScanEventId = null;
-            resumeScanner(); // Scanner wieder fortsetzen
+            resumeScanner();
         }
         
         async function confirmBusSelect() {
@@ -1168,7 +1414,11 @@
             
             if (navigator.onLine && !isOfflineMode) {
                 try {
-                    await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                    const result = await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                    if (result.error) {
+                        showToast('❌ ' + result.error, true);
+                        return;
+                    }
                     showToast('✓ Eingecheckt!');
                 } catch (e) {
                     addToOfflineQueue({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
@@ -1232,6 +1482,9 @@
             renderBusseList();
             renderRegisterList();
             
+            // Settings Checkboxen initialisieren
+            applyAppSettings();
+            
             document.getElementById('total-members').textContent = statsData.totalMembers || 0;
             document.getElementById('total-events').textContent = statsData.totalEvents || 0;
             document.getElementById('total-checkins').textContent = statsData.totalAttended || 0;
@@ -1245,7 +1498,7 @@
                 allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
                 renderMembersList(allMembersData);
                 
-                if (currentUser.actualRole !== 'chef') {
+                if (currentUser.actualRole !== 'chef' && appSettings.strafenEnabled) {
                     const anzeigeResult = await apiGet('getAnzeigen');
                     allAnzeigenData = anzeigeResult.anzeigen || [];
                     renderAnzeigenList(allAnzeigenData);
@@ -1254,14 +1507,21 @@
                 renderRankings(statsData.topAttenders || [], statsData.topAbsent || []);
                 
                 // Load bus and register stats
-                const busStatsResult = await apiGet('getBusStats');
-                renderBusStats(busStatsResult.busStats || []);
+                try {
+                    const busStatsResult = await apiGet('getBusStats');
+                    renderBusStats(busStatsResult.busStats || []);
+                } catch (e) { console.log('Bus stats error:', e); }
                 
-                const regStatsResult = await apiGet('getRegisterStats');
-                renderRegisterStats(regStatsResult.registerStats || []);
+                try {
+                    const regStatsResult = await apiGet('getRegisterStats');
+                    renderRegisterStats(regStatsResult.registerStats || []);
+                } catch (e) { console.log('Register stats error:', e); }
                 
-                // Load Brett
-                loadBrettPosts('gericht');
+                // Load Brett - always try this
+                try {
+                    await loadBrettPosts('gericht');
+                } catch (e) { console.log('Brett load error:', e); }
+                
             } catch (e) { console.error('Gericht view error:', e); }
         }
         
@@ -1809,7 +2069,10 @@
         
         function renderBrettPosts(view) {
             const container = document.getElementById(view === 'gericht' ? 'brett-posts-gericht' : 'brett-posts-member');
-            if (!container) return;
+            if (!container) {
+                console.error('Brett container not found for view:', view);
+                return;
+            }
             
             if (brettPostsData.length === 0) {
                 container.innerHTML = '<div class="empty-state">Noch keine Beiträge</div>';
