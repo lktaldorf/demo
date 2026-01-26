@@ -313,17 +313,34 @@
             <!-- Register View Tab -->
             <div id="register-view-tab" class="screen">
                 <div class="section-header"><h2>🎵 Mein Register</h2></div>
-                <div class="input-group">
-                    <label>Auftritt auswählen</label>
-                    <select id="register-event-select" onchange="loadRegisterZusagen()">
-                        <option value="">-- Auftritt wählen --</option>
-                    </select>
+                
+                <!-- Wochenend-Übersicht für Register -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <h3 style="color: var(--accent-yellow); margin-bottom: 0.75rem;">📅 Wochenend-Übersicht</h3>
+                    <div class="input-group">
+                        <label>Wochenende auswählen</label>
+                        <select id="member-weekend-select" onchange="loadMemberWeekendOverview()">
+                            <option value="">-- Wochenende wählen --</option>
+                        </select>
+                    </div>
+                    <div id="member-weekend-overview"></div>
                 </div>
-                <div id="register-zusagen-info" class="info-box hidden">
-                    <p><strong id="register-name-display">-</strong></p>
-                    <p id="register-zusagen-count">0 / 0 haben zugesagt</p>
+                
+                <!-- Einzelner Auftritt -->
+                <div class="card">
+                    <h3 style="color: var(--accent-blue); margin-bottom: 0.75rem;">🎺 Einzelner Auftritt</h3>
+                    <div class="input-group">
+                        <label>Auftritt auswählen</label>
+                        <select id="register-event-select" onchange="loadRegisterZusagen()">
+                            <option value="">-- Auftritt wählen --</option>
+                        </select>
+                    </div>
+                    <div id="register-zusagen-info" class="info-box hidden">
+                        <p><strong id="register-name-display">-</strong></p>
+                        <p id="register-zusagen-count">0 / 0 haben zugesagt</p>
+                    </div>
+                    <div id="register-members-list"></div>
                 </div>
-                <div id="register-members-list"></div>
             </div>
             
             <!-- Scanner Tab -->
@@ -336,20 +353,6 @@
                 <div id="scan-success" class="hidden" style="text-align: center; padding: 2rem;">
                     <div style="font-size: 4rem;">✅</div>
                     <p style="font-size: 1.2rem; font-weight: 700; margin-top: 1rem;" id="success-text">Eingecheckt!</p>
-                </div>
-                <!-- Bus Selection Modal for Scan -->
-                <div class="modal-overlay" id="bus-select-modal">
-                    <div class="modal">
-                        <h3>🚌 Bus auswählen</h3>
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Wähle deinen Bus für diesen Auftritt:</p>
-                        <div class="input-group">
-                            <select id="checkin-bus-select"><option value="">-- Kein Bus --</option></select>
-                        </div>
-                        <div class="modal-actions">
-                            <button class="btn btn-secondary" onclick="cancelBusSelect()">Abbrechen</button>
-                            <button class="btn btn-primary" onclick="confirmBusSelect()">Einchecken</button>
-                        </div>
-                    </div>
                 </div>
             </div>
             
@@ -433,14 +436,38 @@
             
             <!-- Stats Tab -->
             <div id="stats-tab" class="screen">
-                <div class="section-header"><h2>Deine Statistik</h2></div>
+                <div class="section-header"><h2>📊 Deine Statistik</h2></div>
                 <div class="stats-grid">
                     <div class="stat-card"><div class="number" id="my-attended">0</div><div class="label">Teilgenommen</div></div>
                     <div class="stat-card"><div class="number" id="my-missed">0</div><div class="label">Verpasst</div></div>
                 </div>
                 <div class="stat-card" style="text-align: center;">
-                    <div class="number" id="my-rate">0%</div><div class="label">Anwesenheitsquote</div>
+                    <div class="number" id="my-rate">0%</div><div class="label">Deine Anwesenheitsquote</div>
                 </div>
+                
+                <!-- Register-Statistik -->
+                <div class="section-header" style="margin-top: 1.5rem;"><h2>🎵 Dein Register</h2></div>
+                <div id="my-register-stats">
+                    <div class="card" style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);" id="my-register-name">-</div>
+                        <div class="number" style="font-size: 2rem; color: var(--accent-blue);" id="my-register-rate">-</div>
+                        <div class="label">Register-Quote</div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);" id="my-register-detail">- dabei / - gesamt</div>
+                    </div>
+                </div>
+                
+                <!-- Bus-Statistik -->
+                <div class="section-header" style="margin-top: 1.5rem;"><h2>🚌 Dein Bus</h2></div>
+                <div id="my-bus-stats">
+                    <div class="card" style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);" id="my-bus-name">-</div>
+                        <div class="number" style="font-size: 2rem; color: var(--accent-green);" id="my-bus-rate">-</div>
+                        <div class="label">Bus-Quote</div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);" id="my-bus-detail">- dabei / - gesamt</div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-secondary btn-block" style="margin-top: 1.5rem;" onclick="loadMemberGroupStats()">🔄 Statistik aktualisieren</button>
             </div>
         </div>
         
@@ -792,6 +819,21 @@
             <div class="modal-actions" style="margin-top: 1rem;">
                 <button class="btn btn-secondary" onclick="closeMemberDetail()">Schließen</button>
                 <button class="btn btn-primary" onclick="exportMemberPDF()">📄 PDF</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bus Selection Modal (Global) -->
+    <div class="modal-overlay" id="bus-select-modal">
+        <div class="modal">
+            <h3>🚌 Bus auswählen</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Wähle deinen Bus für diesen Auftritt:</p>
+            <div class="input-group">
+                <select id="checkin-bus-select"><option value="">-- Kein Bus --</option></select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="cancelBusSelect()">Abbrechen</button>
+                <button class="btn btn-primary" onclick="confirmBusSelect()">Einchecken</button>
             </div>
         </div>
     </div>
@@ -1268,7 +1310,25 @@
                     loadBrettPosts('member');
                     initPushNotifications();
                 } else {
-                    renderGerichtView();
+                    // Gericht: UI updaten und zusätzliche Daten laden
+                    populateAttendanceEventSelect();
+                    populateQREventSelect();
+                    populateFilters();
+                    populateWeekendSelect();
+                    renderBusseList();
+                    renderRegisterList();
+                    renderEventsManageList();
+                    renderMyEventsForGericht();
+                    
+                    // Stats aktualisieren
+                    document.getElementById('total-members').textContent = statsData.totalMembers || allMembersData.length || 0;
+                    document.getElementById('total-events').textContent = statsData.totalEvents || 0;
+                    document.getElementById('total-checkins').textContent = statsData.totalAttended || 0;
+                    document.getElementById('total-anzeigen').textContent = statsData.totalAnzeigen || 0;
+                    document.getElementById('overall-rate').textContent = (statsData.attendanceRate || 0) + '%';
+                    
+                    // Gericht-spezifische Daten laden (Members, Anzeigen, etc.)
+                    loadGerichtData();
                 }
             } catch (e) {
                 console.error('Background load error:', e);
@@ -1552,6 +1612,73 @@
             document.getElementById('my-attended').textContent = attended;
             document.getElementById('my-missed').textContent = absent;
             document.getElementById('my-rate').textContent = rate + '%';
+            
+            // Auch Gruppen-Stats laden
+            loadMemberGroupStats();
+        }
+        
+        async function loadMemberGroupStats() {
+            // Register-Stats
+            const registerNameEl = document.getElementById('my-register-name');
+            const registerRateEl = document.getElementById('my-register-rate');
+            const registerDetailEl = document.getElementById('my-register-detail');
+            
+            if (currentUser.registerId) {
+                const register = registerData.find(r => r.id === currentUser.registerId);
+                registerNameEl.textContent = register ? '🎵 ' + register.name : 'Mein Register';
+                
+                try {
+                    const result = await apiGet('getRegisterStats');
+                    const regStats = (result.registerStats || []).find(r => r.id === currentUser.registerId);
+                    if (regStats) {
+                        const total = regStats.attended + regStats.absent;
+                        const rate = total > 0 ? Math.round(regStats.attended / total * 100) : 0;
+                        registerRateEl.textContent = rate + '%';
+                        registerDetailEl.textContent = regStats.attended + ' dabei / ' + total + ' gesamt';
+                    } else {
+                        registerRateEl.textContent = '-';
+                        registerDetailEl.textContent = 'Keine Daten';
+                    }
+                } catch (e) {
+                    registerRateEl.textContent = '-';
+                    registerDetailEl.textContent = 'Fehler beim Laden';
+                }
+            } else {
+                registerNameEl.textContent = 'Kein Register ausgewählt';
+                registerRateEl.textContent = '-';
+                registerDetailEl.textContent = 'Wähle ein Register in deinem Profil';
+            }
+            
+            // Bus-Stats
+            const busNameEl = document.getElementById('my-bus-name');
+            const busRateEl = document.getElementById('my-bus-rate');
+            const busDetailEl = document.getElementById('my-bus-detail');
+            
+            if (currentUser.busId) {
+                const bus = busseData.find(b => b.id === currentUser.busId);
+                busNameEl.textContent = bus ? '🚌 ' + bus.name : 'Mein Bus';
+                
+                try {
+                    const result = await apiGet('getBusStats');
+                    const busStats = (result.busStats || []).find(b => b.id === currentUser.busId);
+                    if (busStats) {
+                        const total = busStats.attended + busStats.absent;
+                        const rate = total > 0 ? Math.round(busStats.attended / total * 100) : 0;
+                        busRateEl.textContent = rate + '%';
+                        busDetailEl.textContent = busStats.attended + ' dabei / ' + total + ' gesamt';
+                    } else {
+                        busRateEl.textContent = '-';
+                        busDetailEl.textContent = 'Keine Daten';
+                    }
+                } catch (e) {
+                    busRateEl.textContent = '-';
+                    busDetailEl.textContent = 'Fehler beim Laden';
+                }
+            } else {
+                busNameEl.textContent = 'Kein fester Bus';
+                busRateEl.textContent = '-';
+                busDetailEl.textContent = 'Du fährst flexibel mit';
+            }
         }
         
         // "Meine Auftritte" für Admin/Chef - gleiche Funktionalität wie für Mitglieder
@@ -1833,6 +1960,114 @@
                 html += '<option value="' + e.id + '">' + e.name + ' (' + (e.date || '') + ')</option>';
             });
             select.innerHTML = html;
+            
+            // Auch Member Weekend Select befüllen
+            populateMemberWeekendSelect();
+        }
+        
+        function populateMemberWeekendSelect() {
+            const select = document.getElementById('member-weekend-select');
+            if (!select) return;
+            
+            const weeks = [...new Set(eventsData.map(e => e.week).filter(w => w))];
+            let html = '<option value="">-- Wochenende wählen --</option>';
+            weeks.forEach(w => {
+                html += '<option value="' + w + '">' + w + '</option>';
+            });
+            select.innerHTML = html;
+        }
+        
+        async function loadMemberWeekendOverview() {
+            const week = document.getElementById('member-weekend-select').value;
+            const container = document.getElementById('member-weekend-overview');
+            
+            if (!week) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            if (!currentUser.registerId) {
+                container.innerHTML = '<div class="empty-state">Du hast noch kein Register ausgewählt.</div>';
+                return;
+            }
+            
+            const weekEvents = eventsData.filter(e => e.week === week);
+            if (weekEvents.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Auftritte für dieses Wochenende</div>';
+                return;
+            }
+            
+            // Zeige Lade-Status
+            container.innerHTML = '<div class="empty-state">Lade Daten...</div>';
+            
+            // Register-Info
+            const register = registerData.find(r => r.id === currentUser.registerId);
+            const registerName = register ? register.name : 'Mein Register';
+            
+            // Lade Attendance für alle Events parallel
+            try {
+                const promises = weekEvents.map(event => 
+                    apiGet('getRegisterZusagen', { eventId: event.id, registerId: currentUser.registerId })
+                        .then(result => ({ eventId: event.id, result }))
+                        .catch(e => ({ eventId: event.id, result: { members: [], total: 0, zugesagt: 0 } }))
+                );
+                
+                const results = await Promise.all(promises);
+                
+                let html = '<div style="margin-top: 1rem;">';
+                html += '<div style="text-align: center; margin-bottom: 1rem; padding: 0.5rem; background: var(--bg-input); border-radius: 8px;">';
+                html += '<strong style="color: var(--accent-yellow);">🎵 ' + registerName + '</strong>';
+                html += '</div>';
+                
+                // Zusammenfassung
+                let totalMembers = 0;
+                let totalZugesagt = 0;
+                
+                results.forEach(({ eventId, result }) => {
+                    if (result.total) totalMembers = result.total; // Alle haben gleiche Total
+                    totalZugesagt += result.zugesagt || 0;
+                });
+                
+                // Pro Event
+                weekEvents.forEach(event => {
+                    const { result } = results.find(r => r.eventId === event.id) || { result: {} };
+                    const members = result.members || [];
+                    const total = result.total || 0;
+                    const zugesagt = result.zugesagt || 0;
+                    
+                    const zugesagtNames = members.filter(m => m.zugesagt).map(m => m.name);
+                    const nichtZugesagt = members.filter(m => !m.zugesagt).map(m => m.name);
+                    
+                    html += '<div style="background: var(--bg-input); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">';
+                    html += '<div style="font-weight: bold; color: var(--text-primary);">' + event.name + '</div>';
+                    html += '<div style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
+                    html += '<div style="margin-top: 0.5rem;">';
+                    html += '<span style="color: var(--accent-green);">✓ ' + zugesagt + '</span>';
+                    html += ' / <span>' + total + '</span>';
+                    html += '</div>';
+                    
+                    if (zugesagtNames.length > 0) {
+                        html += '<div style="margin-top: 0.5rem; font-size: 0.85rem;">';
+                        html += '<span style="color: var(--accent-green);">Dabei:</span> ' + zugesagtNames.join(', ');
+                        html += '</div>';
+                    }
+                    
+                    if (nichtZugesagt.length > 0) {
+                        html += '<div style="margin-top: 0.25rem; font-size: 0.85rem;">';
+                        html += '<span style="color: var(--text-secondary);">Offen:</span> ' + nichtZugesagt.join(', ');
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Member weekend error:', e);
+                container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+            }
         }
         
         async function loadRegisterZusagen() {
@@ -2190,57 +2425,82 @@
             renderBusseList();
             renderRegisterList();
             renderEventsManageList();
-            renderMyEventsForGericht(); // NEU: Eigene Auftritte für Admin/Chef
+            renderMyEventsForGericht();
             
             // Settings Checkboxen initialisieren
             applyAppSettings();
             
-            document.getElementById('total-members').textContent = statsData.totalMembers || 0;
+            // Stats anzeigen (aus Cache oder leer)
+            document.getElementById('total-members').textContent = statsData.totalMembers || allMembersData.length || 0;
             document.getElementById('total-events').textContent = statsData.totalEvents || 0;
             document.getElementById('total-checkins').textContent = statsData.totalAttended || 0;
             document.getElementById('total-anzeigen').textContent = statsData.totalAnzeigen || 0;
             document.getElementById('overall-rate').textContent = (statsData.attendanceRate || 0) + '%';
             
-            try {
-                const membersResult = await apiGet('getMembers');
-                allMembersData = membersResult.members || [];
+            // Members aus Cache anzeigen
+            if (allMembersData.length > 0) {
                 allMemberStats = statsData.memberStats || {};
                 allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
                 renderMembersList(allMembersData);
+                renderRankings(statsData.topAttenders || [], statsData.topAbsent || []);
+            }
+            
+            // Anzeigen aus Cache
+            if (allAnzeigenData.length > 0) {
+                renderAnzeigenList(allAnzeigenData);
+            }
+            
+            // Brett aus Cache
+            renderBrettPostsFromCache();
+        }
+        
+        // Lädt alle Gericht-spezifischen Daten (wird von loadFreshDataInBackground aufgerufen)
+        async function loadGerichtData() {
+            const permissions = currentUser.permissions || {};
+            
+            try {
+                const promises = [
+                    apiGet('getMembers').catch(e => ({ members: [] })),
+                    permissions.canManageAnzeigen && appSettings.strafenEnabled ? apiGet('getAnzeigen').catch(e => ({ anzeigen: [] })) : Promise.resolve(null),
+                    apiGet('getBusStats').catch(e => ({ busStats: [] })),
+                    apiGet('getRegisterStats').catch(e => ({ registerStats: [] }))
+                ];
                 
-                const permissions = currentUser.permissions || {};
-                if (permissions.canManageAnzeigen && appSettings.strafenEnabled) {
-                    const anzeigeResult = await apiGet('getAnzeigen');
+                const [membersResult, anzeigeResult, busStatsResult, regStatsResult] = await Promise.all(promises);
+                
+                // Members
+                if (membersResult.members) {
+                    allMembersData = membersResult.members;
+                    saveToCache('members', allMembersData);
+                    allMemberStats = statsData.memberStats || {};
+                    allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
+                    renderMembersList(allMembersData);
+                }
+                
+                // Anzeigen
+                if (anzeigeResult) {
                     allAnzeigenData = anzeigeResult.anzeigen || [];
                     renderAnzeigenList(allAnzeigenData);
                 }
                 
                 renderRankings(statsData.topAttenders || [], statsData.topAbsent || []);
                 
-                // Load bus and register stats
-                try {
-                    const busStatsResult = await apiGet('getBusStats');
-                    renderBusStats(busStatsResult.busStats || []);
-                } catch (e) { console.log('Bus stats error:', e); }
+                // Bus & Register Stats
+                if (busStatsResult.busStats) renderBusStats(busStatsResult.busStats);
+                if (regStatsResult.registerStats) renderRegisterStats(regStatsResult.registerStats);
                 
-                try {
-                    const regStatsResult = await apiGet('getRegisterStats');
-                    renderRegisterStats(regStatsResult.registerStats || []);
-                } catch (e) { console.log('Register stats error:', e); }
+                // Forum und Rollen im Hintergrund (nicht blockierend)
+                loadForumBereiche().then(() => loadBrettPosts('gericht')).catch(e => {});
                 
-                // Load Brett - always try this
-                try {
-                    await loadForumBereiche();
-                    await loadBrettPosts('gericht');
-                } catch (e) { console.log('Brett load error:', e); }
-                
-                // Load Rollen und Anfragen - nur für Admin
                 if (permissions.isAdmin || permissions.canManageRoles) {
-                    try { await loadRollen(); } catch (e) { console.log('Rollen load error:', e); }
-                    try { await loadRegisterAnfragen(); } catch (e) { console.log('Anfragen load error:', e); }
+                    loadRollen().catch(e => {});
                 }
-                
-            } catch (e) { console.error('Gericht view error:', e); }
+                if (permissions.isAdmin || permissions.canManageMembers) {
+                    loadRegisterAnfragen().catch(e => {});
+                }
+            } catch (e) {
+                console.error('loadGerichtData error:', e);
+            }
         }
         
         function populateFilters() {
@@ -2778,18 +3038,31 @@
         // SCHWARZES BRETT
         // ============================================================
         async function loadBrettPosts(view) {
+            // SOFORT: Cache anzeigen
+            const cachedPosts = getFromCache('brett_' + currentForumBereichId);
+            const cachedKom = getFromCache('kommentare');
+            if (cachedPosts) {
+                brettPostsData = cachedPosts;
+                if (cachedKom) kommentareData = cachedKom;
+                renderBrettPosts(view);
+            }
+            
+            // DANN: Frische Daten parallel laden
             try {
-                // Lade Posts für aktuellen Bereich
-                const result = await apiGet('getBrettPosts', { bereichId: currentForumBereichId });
-                brettPostsData = result.posts || [];
+                const [postsResult, komResult] = await Promise.all([
+                    apiGet('getBrettPosts', { bereichId: currentForumBereichId }),
+                    apiGet('getKommentare')
+                ]);
                 
-                // Load all comments
-                const komResult = await apiGet('getKommentare');
+                brettPostsData = postsResult.posts || [];
+                saveToCache('brett_' + currentForumBereichId, brettPostsData);
+                
                 kommentareData = {};
                 (komResult.kommentare || []).forEach(k => {
                     if (!kommentareData[k.postId]) kommentareData[k.postId] = [];
                     kommentareData[k.postId].push(k);
                 });
+                saveToCache('kommentare', kommentareData);
                 
                 renderBrettPosts(view);
             } catch (e) { console.error('Brett load error:', e); }
@@ -3900,7 +4173,6 @@
                 return;
             }
             
-            showLoading();
             if (exportBtn) exportBtn.classList.remove('hidden');
             
             // Events für dieses Wochenende filtern
@@ -3909,15 +4181,30 @@
             if (weekEvents.length === 0) {
                 container.innerHTML = '<div class="empty-state">Keine Auftritte für dieses Wochenende</div>';
                 if (exportBtn) exportBtn.classList.add('hidden');
-                hideLoading();
                 return;
             }
             
-            // Anwesenheitsdaten für alle Events laden
+            // SOFORT: Zeige was wir haben (aus Cache)
+            const cachedWeekendData = getFromCache('weekendAtt_' + week);
+            if (cachedWeekendData) {
+                weekendAttendanceData = { ...weekendAttendanceData, ...cachedWeekendData };
+                renderWeekendOverview(weekEvents, week);
+            } else {
+                container.innerHTML = '<div class="empty-state">Lade Daten...</div>';
+            }
+            
+            // DANN: Im Hintergrund frische Daten laden (PARALLEL!)
             try {
-                for (const event of weekEvents) {
-                    const result = await apiGet('getEventAttendance', { eventId: event.id });
-                    // Konvertiere Objekt {name: boolean} zu Array [{name, status, comment}]
+                const promises = weekEvents.map(event => 
+                    apiGet('getEventAttendance', { eventId: event.id })
+                        .then(result => ({ eventId: event.id, result }))
+                        .catch(e => ({ eventId: event.id, result: { attendance: {} } }))
+                );
+                
+                const results = await Promise.all(promises);
+                
+                const newData = {};
+                results.forEach(({ eventId, result }) => {
                     const attObj = result.attendance || {};
                     const attArray = [];
                     for (const name in attObj) {
@@ -3927,14 +4214,17 @@
                             comment: ''
                         });
                     }
-                    weekendAttendanceData[event.id] = attArray;
-                }
+                    weekendAttendanceData[eventId] = attArray;
+                    newData[eventId] = attArray;
+                });
+                
+                // Cache speichern
+                saveToCache('weekendAtt_' + week, newData);
+                
+                renderWeekendOverview(weekEvents, week);
             } catch (e) {
                 console.log('Weekend attendance error:', e);
             }
-            
-            renderWeekendOverview(weekEvents, week);
-            hideLoading();
         }
         
         function renderWeekendOverview(weekEvents, week) {
