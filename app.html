@@ -880,8 +880,10 @@
             if (cached.members) allMembersData = cached.members;
             if (cached.stats) statsData = cached.stats;
             if (cached.settings) {
-                appSettings.qrScannerEnabled = cached.settings.qrScannerEnabled !== 'false';
-                appSettings.strafenEnabled = cached.settings.strafenEnabled !== 'false';
+                // Konsistente Prüfung: nur 'false' String ist false, alles andere true
+                appSettings.qrScannerEnabled = cached.settings.qrScannerEnabled !== 'false' && cached.settings.qrScannerEnabled !== false;
+                appSettings.strafenEnabled = cached.settings.strafenEnabled !== 'false' && cached.settings.strafenEnabled !== false;
+                console.log('loadCachedData settings:', cached.settings, '-> qr:', appSettings.qrScannerEnabled, 'strafen:', appSettings.strafenEnabled);
             }
             if (cached.brett) brettPostsData = cached.brett;
             if (cached.forumBereiche) forumBereicheData = cached.forumBereiche;
@@ -1203,8 +1205,9 @@
                 
                 // Settings
                 if (settingsResult?.settings) {
-                    appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false';
-                    appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false';
+                    appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false' && settingsResult.settings.qrScannerEnabled !== false;
+                    appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false' && settingsResult.settings.strafenEnabled !== false;
+                    console.log('loadFreshData settings:', settingsResult.settings, '-> qr:', appSettings.qrScannerEnabled, 'strafen:', appSettings.strafenEnabled);
                     saveToCache('settings', settingsResult.settings);
                     applyAppSettings();
                 }
@@ -1377,12 +1380,17 @@
                 }
             }
             
-            // Settings-Checkboxen aktualisieren - sicherstellen dass Boolean
-            const qrEnabled = appSettings.qrScannerEnabled === true || appSettings.qrScannerEnabled === 'true';
-            const strafenEnabled = appSettings.strafenEnabled === true || appSettings.strafenEnabled === 'true';
-            
+            // Settings-Checkboxen aktualisieren
             const qrCheckbox = document.getElementById('setting-qr-scanner');
             const strafenCheckbox = document.getElementById('setting-strafen');
+            
+            // Konvertiere zu Boolean - prüfe auf alle möglichen true-Werte
+            const qrEnabled = appSettings.qrScannerEnabled === true || appSettings.qrScannerEnabled === 'true' || appSettings.qrScannerEnabled === 1;
+            const strafenEnabled = appSettings.strafenEnabled === true || appSettings.strafenEnabled === 'true' || appSettings.strafenEnabled === 1;
+            
+            console.log('applyAppSettings - qrEnabled:', qrEnabled, 'raw:', appSettings.qrScannerEnabled);
+            console.log('applyAppSettings - strafenEnabled:', strafenEnabled, 'raw:', appSettings.strafenEnabled);
+            
             if (qrCheckbox) qrCheckbox.checked = qrEnabled;
             if (strafenCheckbox) strafenCheckbox.checked = strafenEnabled;
         }
@@ -1401,23 +1409,43 @@
         }
         
         async function saveAppSettings() {
-            const qrEnabled = document.getElementById('setting-qr-scanner').checked;
-            const strafenEnabled = document.getElementById('setting-strafen').checked;
+            const qrCheckbox = document.getElementById('setting-qr-scanner');
+            const strafenCheckbox = document.getElementById('setting-strafen');
             
+            if (!qrCheckbox || !strafenCheckbox) {
+                console.error('Checkboxen nicht gefunden!');
+                return;
+            }
+            
+            const qrEnabled = qrCheckbox.checked;
+            const strafenEnabled = strafenCheckbox.checked;
+            
+            console.log('saveAppSettings - qrEnabled:', qrEnabled, 'strafenEnabled:', strafenEnabled);
+            
+            // Sofort lokal setzen
             appSettings.qrScannerEnabled = qrEnabled;
             appSettings.strafenEnabled = strafenEnabled;
             
             try {
-                await apiPost({
+                const result = await apiPost({
                     action: 'updateSettings',
                     settings: {
                         qrScannerEnabled: qrEnabled ? 'true' : 'false',
                         strafenEnabled: strafenEnabled ? 'true' : 'false'
                     }
                 });
+                console.log('saveAppSettings result:', result);
+                
+                // Cache aktualisieren
+                saveToCache('settings', { 
+                    qrScannerEnabled: qrEnabled ? 'true' : 'false', 
+                    strafenEnabled: strafenEnabled ? 'true' : 'false' 
+                });
+                
                 applyAppSettings();
                 showToast('Einstellungen gespeichert!');
             } catch (e) {
+                console.error('saveAppSettings error:', e);
                 showToast('Fehler beim Speichern', true);
             }
         }
