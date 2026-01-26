@@ -1193,23 +1193,26 @@
         
         async function loadFreshDataInBackground() {
             try {
-                // Parallel laden für bessere Performance
+                // ALLE Daten parallel laden für maximale Performance
+                const isGericht = currentUser.role !== 'member';
+                
                 const promises = [
                     apiGet('getSettings').catch(e => null),
                     apiGet('getBusse').catch(e => null),
                     apiGet('getRegister').catch(e => null),
-                    apiGet('getEvents').catch(e => null)
+                    apiGet('getEvents').catch(e => null),
+                    apiGet('getMemberAttendance', { name: currentUser.name }).catch(e => null),
+                    apiGet('getZusagen').catch(e => null),
+                    isGericht ? apiGet('getStats').catch(e => null) : Promise.resolve(null)
                 ];
                 
-                const [settingsResult, busseResult, registerResult, eventsResult] = await Promise.all(promises);
+                const [settingsResult, busseResult, registerResult, eventsResult, attResult, zusagenResult, statsResult] = await Promise.all(promises);
                 
                 // Settings
                 if (settingsResult?.settings) {
                     appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false' && settingsResult.settings.qrScannerEnabled !== false;
                     appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false' && settingsResult.settings.strafenEnabled !== false;
-                    console.log('loadFreshData settings:', settingsResult.settings, '-> qr:', appSettings.qrScannerEnabled, 'strafen:', appSettings.strafenEnabled);
                     saveToCache('settings', settingsResult.settings);
-                    applyAppSettings();
                 }
                 
                 // Busse
@@ -1230,48 +1233,41 @@
                     saveToCache('events', eventsData);
                 }
                 
-                // Aktualisiere UI mit frischen Daten
+                // Attendance
+                if (attResult && !attResult.error) {
+                    attendanceData = attResult.attendance || {};
+                    commentsData = attResult.comments || {};
+                    currentUser.busId = attResult.busId;
+                    currentUser.registerId = attResult.registerId;
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    if (currentUser.role === 'member') saveLocalAttendance();
+                }
+                
+                // Zusagen
+                if (zusagenResult?.zusagen) {
+                    zusagenData = zusagenResult.zusagen;
+                }
+                
+                // Stats (nur Gericht)
+                if (statsResult && !statsResult.error) {
+                    statsData = statsResult;
+                    saveToCache('stats', statsData);
+                }
+                
+                // UI aktualisieren
+                applyAppSettings();
+                
                 if (currentUser.role === 'member') {
-                    // Member-spezifische Daten laden
-                    try {
-                        const attResult = await apiGet('getMemberAttendance', { name: currentUser.name });
-                        if (!attResult.error) {
-                            attendanceData = attResult.attendance || {};
-                            commentsData = attResult.comments || {};
-                            currentUser.busId = attResult.busId;
-                            currentUser.registerId = attResult.registerId;
-                            localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-                            saveLocalAttendance();
-                        }
-                        const zusagenResult = await apiGet('getZusagen');
-                        zusagenData = zusagenResult.zusagen || {};
-                    } catch (e) { console.log('Member data error:', e); }
-                    
                     if (offlineQueue.length > 0) syncOfflineQueue();
                     renderMemberView();
                     populateProfileSelects();
                     populateRegisterEventSelect();
                     
-                    // Forum laden
-                    try { await loadForumBereiche(); } catch (e) {}
+                    // Forum im Hintergrund laden (nicht blockierend)
+                    loadForumBereiche().catch(e => {});
                     loadBrettPosts('member');
                     initPushNotifications();
                 } else {
-                    // Gericht-spezifische Daten - AUCH eigene Anwesenheit laden!
-                    try { statsData = await apiGet('getStats'); saveToCache('stats', statsData); } catch (e) {}
-                    
-                    // Eigene Anwesenheit für "Meine Auftritte" Tab laden
-                    try {
-                        const attResult = await apiGet('getMemberAttendance', { name: currentUser.name });
-                        if (!attResult.error) {
-                            attendanceData = attResult.attendance || {};
-                            currentUser.busId = attResult.busId;
-                            currentUser.registerId = attResult.registerId;
-                        }
-                        const zusagenResult = await apiGet('getZusagen');
-                        zusagenData = zusagenResult.zusagen || {};
-                    } catch (e) { console.log('Gericht attendance error:', e); }
-                    
                     renderGerichtView();
                 }
             } catch (e) {
@@ -1505,7 +1501,7 @@
                     if (!appSettings.qrScannerEnabled) {
                         html += '<button class="btn btn-primary" onclick="directCheckIn(\'' + event.id + '\')">✓ Ich bin dabei</button>';
                     } else {
-                        // Zusagen-Button
+                        // Zusagen-Button nur wenn QR aktiv
                         html += '<button class="btn zusage-btn ' + (hasZugesagt ? 'active' : '') + '" onclick="toggleZusage(\'' + event.id + '\')">' + (hasZugesagt ? '✓ Zugesagt' : '+ Zusagen') + '</button>';
                     }
                     html += '<button class="btn btn-danger" onclick="markAbsentEvent(\'' + event.id + '\')">✗ Absagen</button>';
@@ -1519,14 +1515,32 @@
         }
         
         async function directCheckIn(eventId) {
+            console.log('directCheckIn called:', eventId, 'busId:', currentUser.busId);
             // Direkt einchecken ohne QR-Code
             if (currentUser.busId) {
-                await checkInEvent(eventId, currentUser.busId);
+                showLoading();
+                try {
+                    await checkInEvent(eventId, currentUser.busId);
+                } catch(e) {
+                    console.error('directCheckIn error:', e);
+                    showToast('Fehler beim Einchecken', true);
+                }
+                hideLoading();
             } else {
                 // Bus-Auswahl zeigen
+                console.log('Showing bus select modal');
                 pendingScanEventId = eventId;
-                document.getElementById('checkin-bus-select').value = '';
-                document.getElementById('bus-select-modal').classList.add('active');
+                const busSelect = document.getElementById('checkin-bus-select');
+                if (busSelect) {
+                    busSelect.value = '';
+                }
+                const modal = document.getElementById('bus-select-modal');
+                if (modal) {
+                    modal.classList.add('active');
+                } else {
+                    console.error('Bus select modal not found!');
+                    showToast('Modal nicht gefunden', true);
+                }
             }
         }
         
@@ -4271,49 +4285,39 @@
         
         async function enablePushNotifications() {
             try {
-                const permission = await Notification.requestPermission();
+                // Prüfe ob Notifications unterstützt werden
+                if (!('Notification' in window)) {
+                    showToast('Benachrichtigungen werden nicht unterstützt', true);
+                    return;
+                }
+                
+                // Berechtigung anfordern
+                let permission = Notification.permission;
+                if (permission === 'default') {
+                    permission = await Notification.requestPermission();
+                }
+                
                 if (permission !== 'granted') {
                     showToast('Benachrichtigungen wurden abgelehnt', true);
                     return;
                 }
                 
-                const registration = await navigator.serviceWorker.ready;
-                
-                // VAPID Public Key - muss durch echten Key ersetzt werden
-                const vapidPublicKey = 'YOUR_VAPID_PUBLIC_KEY_HERE';
-                
-                // Für lokale Tests ohne echten VAPID Key
-                if (vapidPublicKey === 'YOUR_VAPID_PUBLIC_KEY_HERE') {
-                    // Simuliere Subscription für lokale Tests
-                    showToast('Push aktiviert (Demo-Modus)');
-                    document.getElementById('push-enable-btn').classList.add('hidden');
-                    document.getElementById('push-settings').classList.remove('hidden');
-                    savePushSettingsLocal();
-                    return;
-                }
-                
-                pushSubscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-                });
-                
-                // Subscription an Server senden
-                if (currentUser && currentUser.memberId) {
-                    await apiPost({
-                        action: 'savePushSubscription',
-                        memberId: currentUser.memberId,
-                        subscription: pushSubscription.toJSON()
-                    });
-                }
-                
+                // Benachrichtigungen aktiviert
+                localStorage.setItem('lkt-notifications-enabled', 'true');
                 showToast('Benachrichtigungen aktiviert!');
                 document.getElementById('push-enable-btn').classList.add('hidden');
                 document.getElementById('push-settings').classList.remove('hidden');
                 savePushSettingsLocal();
                 
+                // Test-Benachrichtigung
+                new Notification('LKT Tracker', {
+                    body: 'Benachrichtigungen wurden aktiviert!',
+                    icon: 'icon-192.png'
+                });
+                
             } catch (e) {
-                console.error('Push subscription error:', e);
-                showToast('Fehler beim Aktivieren: ' + e.message, true);
+                console.error('Notification error:', e);
+                showToast('Fehler: ' + e.message, true);
             }
         }
         
