@@ -167,6 +167,42 @@
         .register-member .status { font-size: 1.2rem; }
         .register-member.zugesagt { border-left: 3px solid var(--accent-green); }
         .register-member.nicht-zugesagt { border-left: 3px solid var(--border-color); opacity: 0.7; }
+        .badge { background: var(--accent-red); color: white; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem; }
+        .rolle-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid var(--accent-purple); }
+        .rolle-item .rolle-name { font-weight: 600; }
+        .rolle-item .rolle-perms { font-size: 0.75rem; color: var(--text-secondary); }
+        .rolle-item.system-rolle { border-left-color: var(--accent-yellow); }
+        .anfrage-item { padding: 1rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--accent-orange); }
+        .anfrage-item .anfrage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .anfrage-item .anfrage-change { color: var(--text-secondary); font-size: 0.9rem; }
+        .anfrage-item .anfrage-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+        .bereich-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .bereich-item .bereich-typ { font-size: 0.75rem; color: var(--text-secondary); }
+        .forum-tabs { display: flex; overflow-x: auto; gap: 0.5rem; padding: 0.5rem 0; margin-bottom: 1rem; }
+        .forum-tab { padding: 0.5rem 1rem; border-radius: 20px; background: var(--bg-card); border: none; color: var(--text-primary); cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
+        .forum-tab.active { background: var(--accent-blue); color: white; }
+        .forum-tab.register-tab { border-left: 3px solid var(--accent-purple); }
+        .weekend-event-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; border-left: 4px solid var(--accent-blue); transition: transform 0.2s; }
+        .weekend-event-card:hover { transform: translateX(5px); }
+        .weekend-event-card .event-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+        .weekend-event-card .event-info { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+        .weekend-event-card .register-bars { display: flex; flex-direction: column; gap: 0.25rem; }
+        .register-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+        .register-bar .bar-label { width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .register-bar .bar-container { flex: 1; height: 16px; background: var(--bg-input); border-radius: 8px; overflow: hidden; }
+        .register-bar .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-green), var(--accent-blue)); border-radius: 8px; transition: width 0.3s; }
+        .register-bar .bar-count { width: 50px; text-align: right; font-weight: 600; }
+        .weekend-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+        .weekend-summary .stat-box { background: var(--bg-card); padding: 0.75rem; border-radius: 8px; text-align: center; }
+        .weekend-summary .stat-box .number { font-size: 1.5rem; font-weight: 700; }
+        .weekend-summary .stat-box .label { font-size: 0.75rem; color: var(--text-secondary); }
+        .member-attendance-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        .member-attendance-row .status-icon { font-size: 1.2rem; }
+        .member-attendance-row.anwesend { border-left: 3px solid var(--accent-green); }
+        .member-attendance-row.abwesend { border-left: 3px solid var(--accent-red); opacity: 0.8; }
+        .member-attendance-row.unknown { border-left: 3px solid var(--border-color); opacity: 0.6; }
+        --accent-orange: #f97316;
+        --accent-red: #ef4444;
     </style>
 </head>
 <body>
@@ -262,6 +298,7 @@
             <!-- Schwarzes Brett Tab -->
             <div id="brett-tab" class="screen">
                 <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
+                <div class="forum-tabs" id="forum-tabs-member"></div>
                 <div class="card" id="new-post-form">
                     <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
                     <div class="input-group"><input type="text" id="post-titel" placeholder="Titel"></div>
@@ -333,6 +370,49 @@
                     </div>
                     <button class="btn btn-primary btn-block" onclick="saveProfile()">💾 Profil speichern</button>
                 </div>
+                
+                <!-- Push-Benachrichtigungen -->
+                <div class="card" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-purple); margin-bottom: 1rem;">🔔 Benachrichtigungen</h3>
+                    <div id="push-not-supported" class="hidden">
+                        <p style="color: var(--accent-red);">Push-Benachrichtigungen werden in diesem Browser nicht unterstützt.</p>
+                    </div>
+                    <div id="push-settings-container">
+                        <button class="btn btn-secondary btn-block" id="push-enable-btn" onclick="enablePushNotifications()">🔔 Benachrichtigungen aktivieren</button>
+                        <div id="push-settings" class="hidden" style="margin-top: 1rem;">
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>📅 Event-Erinnerungen</span>
+                                    <input type="checkbox" id="push-event-reminder" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="input-group" id="reminder-time-group">
+                                <label>Erinnerungszeit vor Event</label>
+                                <select id="push-reminder-time" onchange="savePushSettingsLocal()">
+                                    <option value="30">30 Minuten vorher</option>
+                                    <option value="60">1 Stunde vorher</option>
+                                    <option value="120">2 Stunden vorher</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>💬 Neue Forum-Beiträge</span>
+                                    <input type="checkbox" id="push-forum-posts" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>🎵 Beiträge in meinem Register</span>
+                                    <input type="checkbox" id="push-register-posts" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <button class="btn btn-danger btn-block" style="margin-top: 1rem;" onclick="logout()">🚪 Ausloggen</button>
             </div>
             
@@ -389,6 +469,7 @@
             <!-- Schwarzes Brett Tab (Gericht) -->
             <div id="brett-gericht-tab" class="screen">
                 <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
+                <div class="forum-tabs" id="forum-tabs-admin"></div>
                 <div class="card">
                     <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
                     <div class="input-group"><input type="text" id="post-titel-gericht" placeholder="Titel"></div>
@@ -420,6 +501,32 @@
                         <button class="btn btn-secondary" onclick="saveAllAttendance()" style="padding: 0.5rem 1rem;">💾 Speichern</button>
                     </div>
                     <div id="attendance-table" style="max-height: 60vh; overflow-y: auto;"></div>
+                </div>
+                
+                <!-- Wochenend-Übersicht -->
+                <div class="section-header" style="margin-top: 2rem;"><h2>📅 Wochenend-Übersicht</h2></div>
+                <div class="input-group">
+                    <label>Wochenende auswählen</label>
+                    <select id="weekend-select" onchange="loadWeekendOverview()">
+                        <option value="">-- Wochenende wählen --</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary btn-block hidden" id="weekend-export-btn" onclick="exportWeekendPDF()" style="margin-bottom: 1rem;">📄 Wochenend-Übersicht als PDF</button>
+                <div id="weekend-overview"></div>
+                
+                <!-- Event-Detail Modal für Wochenende -->
+                <div class="modal-overlay" id="weekend-event-modal">
+                    <div class="modal">
+                        <h3 id="weekend-event-title">Event Details</h3>
+                        <div id="weekend-event-stats" style="margin: 1rem 0;"></div>
+                        <div class="section-header"><h4>Nach Register</h4></div>
+                        <div id="weekend-event-registers"></div>
+                        <div class="section-header" style="margin-top: 1rem;"><h4>Teilnehmer</h4></div>
+                        <div id="weekend-event-members" style="max-height: 300px; overflow-y: auto;"></div>
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary" onclick="closeWeekendEventModal()">Schließen</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -453,9 +560,20 @@
             <div id="settings-tab" class="screen">
                 <div class="section-header"><h2>⚙️ Vereinseinstellungen</h2></div>
                 
+                <!-- API-URL Konfiguration - nur für Admin -->
+                <div class="card" id="api-url-section">
+                    <h3 style="color: var(--accent-blue); margin-bottom: 1rem;">🔗 API-Verbindung</h3>
+                    <div class="input-group">
+                        <label>Google Apps Script URL</label>
+                        <input type="text" id="setting-api-url" placeholder="https://script.google.com/...">
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="saveApiUrl()">💾 URL speichern</button>
+                    <p class="setting-desc" style="margin-top: 0.5rem;">Die Web-App URL deines Google Apps Script Deployments</p>
+                </div>
+                
                 <!-- App-Modi - nur für Admin -->
-                <div class="card" id="app-modi-section">
-                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">📱 App-Modi <span style="font-size: 0.7rem; color: var(--text-secondary);">(nur Admin)</span></h3>
+                <div class="card" id="app-modi-section" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">📱 App-Modi</h3>
                     <div class="setting-item">
                         <label class="toggle-label">
                             <span>📷 QR-Scanner aktiviert</span>
@@ -472,6 +590,35 @@
                         </label>
                         <p class="setting-desc">Wenn deaktiviert, werden Anzeigen-Funktionen ausgeblendet</p>
                     </div>
+                </div>
+                
+                <!-- Register-Anfragen -->
+                <div class="card" id="register-anfragen-section" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-orange); margin-bottom: 1rem;">📋 Register-Wechsel Anfragen <span class="badge" id="anfragen-count">0</span></h3>
+                    <div id="register-anfragen-list"></div>
+                </div>
+                
+                <!-- Rollen verwalten - nur für Admin -->
+                <div class="card" id="rollen-section" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-red); margin-bottom: 1rem;">👑 Rollen verwalten</h3>
+                    <div id="rollen-list"></div>
+                    <button class="btn btn-secondary btn-block" style="margin-top: 1rem;" onclick="showAddRolleModal()">+ Neue Rolle erstellen</button>
+                </div>
+                
+                <!-- Forum-Bereiche verwalten -->
+                <div class="card" id="forum-bereiche-section" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">💬 Forum-Bereiche</h3>
+                    <div id="forum-bereiche-list"></div>
+                    <div class="input-group" style="margin-top: 1rem;">
+                        <input type="text" id="new-bereich-name" placeholder="Neuer Bereich-Name">
+                    </div>
+                    <div class="input-group">
+                        <select id="new-bereich-typ">
+                            <option value="custom">Allgemeiner Bereich</option>
+                            <option value="register">Register-Bereich (für alle Register)</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="addNewForumBereich()">+ Bereich hinzufügen</button>
                 </div>
                 
                 <!-- Busse verwalten -->
@@ -497,6 +644,12 @@
                 <!-- Events verwalten -->
                 <div class="card" style="margin-top: 1rem;">
                     <h3 style="color: var(--accent-yellow); margin-bottom: 1rem;">📅 Veranstaltungen verwalten</h3>
+                    
+                    <!-- Bestehende Events -->
+                    <div class="section-header"><h4>Bestehende Events</h4></div>
+                    <div id="events-manage-list" style="max-height: 300px; overflow-y: auto; margin-bottom: 1rem;"></div>
+                    
+                    <div class="section-header"><h4>Neues Event</h4></div>
                     <div class="input-group"><label>Name *</label><input type="text" id="new-event-name" placeholder="z.B. Extraauftritt"></div>
                     <div class="input-group"><label>Woche</label><input type="text" id="new-event-week" placeholder="z.B. WE 3 oder Extra"></div>
                     <div class="input-group"><label>Datum</label><input type="text" id="new-event-date" placeholder="TT.MM.JJJJ"></div>
@@ -516,6 +669,47 @@
                 </div>
                 
                 <button class="btn btn-danger btn-block" style="margin-top: 2rem;" onclick="logout()">🚪 Ausloggen</button>
+            </div>
+            
+            <!-- Event bearbeiten Modal -->
+            <div class="modal-overlay" id="event-edit-modal">
+                <div class="modal">
+                    <h3>Event bearbeiten</h3>
+                    <input type="hidden" id="edit-event-id">
+                    <div class="input-group"><label>Name *</label><input type="text" id="edit-event-name"></div>
+                    <div class="input-group"><label>Woche</label><input type="text" id="edit-event-week"></div>
+                    <div class="input-group"><label>Datum</label><input type="text" id="edit-event-date"></div>
+                    <div class="input-group"><label>Ort</label><input type="text" id="edit-event-location"></div>
+                    <div class="input-group"><label>Uhrzeit</label><input type="text" id="edit-event-time"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeEventEditModal()">Abbrechen</button>
+                        <button class="btn btn-danger" onclick="deleteEventFromModal()">🗑️ Löschen</button>
+                        <button class="btn btn-primary" onclick="saveEventEdit()">💾 Speichern</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Rolle bearbeiten Modal -->
+            <div class="modal-overlay" id="rolle-modal">
+                <div class="modal" style="max-height: 90vh; overflow-y: auto;">
+                    <h3 id="rolle-modal-title">Rolle bearbeiten</h3>
+                    <div class="input-group"><label>Rollenname</label><input type="text" id="rolle-name-input" placeholder="z.B. Registerleiter"></div>
+                    <div class="section-header"><h4>Berechtigungen</h4></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Alle Mitglieder sehen</span><input type="checkbox" id="perm-viewAllMembers"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Alle Anwesenheiten sehen</span><input type="checkbox" id="perm-viewAllAttendance"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Eigenes Register sehen</span><input type="checkbox" id="perm-viewOwnRegister"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Events verwalten</span><input type="checkbox" id="perm-manageEvents"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Mitglieder verwalten</span><input type="checkbox" id="perm-manageMembers"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Rollen verwalten</span><input type="checkbox" id="perm-manageRoles"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Anzeigen verwalten</span><input type="checkbox" id="perm-manageAnzeigen"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Forum-Bereiche erstellen</span><input type="checkbox" id="perm-createForumCategories"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>🔧 Admin-Rechte</span><input type="checkbox" id="perm-isAdmin"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>🎵 Registerleiter</span><input type="checkbox" id="perm-isRegisterleiter"><span class="toggle-slider"></span></label></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeRolleModal()">Abbrechen</button>
+                        <button class="btn btn-primary" onclick="saveRolle()">Speichern</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -550,9 +744,7 @@
             <div class="input-group" id="member-role-group">
                 <label>Rolle ändern</label>
                 <select id="member-detail-role">
-                    <option value="mitglied">Mitglied</option>
-                    <option value="chef">Chef (sieht alles außer Strafen)</option>
-                    <option value="gericht">Admin (voller Zugriff)</option>
+                    <!-- Wird dynamisch gefüllt -->
                 </select>
             </div>
             <button class="btn btn-primary btn-block" onclick="saveMemberRole()" id="save-role-btn">Rolle speichern</button>
@@ -817,7 +1009,7 @@
                 document.getElementById('gericht-nav').classList.remove('hidden');
                 document.getElementById('member-screens').classList.add('hidden');
                 document.getElementById('gericht-screens').classList.remove('hidden');
-                document.getElementById('config-btn').textContent = '⚙️';
+                document.getElementById('config-btn').textContent = '🔄'; // Auch für Admin: Aktualisierung
                 
                 // Tabs basierend auf Berechtigungen ein/ausblenden
                 if (!permissions.canManageAnzeigen) {
@@ -932,7 +1124,11 @@
                     renderMemberView();
                     populateProfileSelects();
                     populateRegisterEventSelect();
+                    // Forum-Bereiche laden und dann Brett
+                    try { await loadForumBereiche(); } catch (e) { console.log('Forum-Bereiche error:', e); }
                     loadBrettPosts('member');
+                    // Push-Benachrichtigungen initialisieren
+                    initPushNotifications();
                 } else {
                     if (!isOfflineMode && navigator.onLine) {
                         try { statsData = await apiGet('getStats'); } catch (e) {}
@@ -946,6 +1142,8 @@
         }
         
         function applyAppSettings() {
+            const permissions = currentUser ? currentUser.permissions || {} : {};
+            
             // Scanner Tab anzeigen/verstecken
             const scannerNav = document.getElementById('nav-scanner');
             if (scannerNav) {
@@ -969,20 +1167,61 @@
             // Anzeigen-Tab in Gericht Navigation
             const gerichtAnzeigenNav = document.querySelector('#gericht-nav [data-tab="anzeigen"]');
             if (gerichtAnzeigenNav) {
-                if (appSettings.strafenEnabled) {
+                if (appSettings.strafenEnabled && permissions.canManageAnzeigen) {
                     gerichtAnzeigenNav.classList.remove('hidden');
                 } else {
                     gerichtAnzeigenNav.classList.add('hidden');
                 }
             }
             
-            // App-Modi Section nur für Admin (nicht Chef)
+            // API-URL Section nur für Admin
+            const apiUrlSection = document.getElementById('api-url-section');
+            if (apiUrlSection) {
+                if (permissions.isAdmin) {
+                    apiUrlSection.classList.remove('hidden');
+                    document.getElementById('setting-api-url').value = API_URL;
+                } else {
+                    apiUrlSection.classList.add('hidden');
+                }
+            }
+            
+            // App-Modi Section nur für Admin
             const appModiSection = document.getElementById('app-modi-section');
             if (appModiSection) {
-                if (currentUser && currentUser.actualRole === 'gericht') {
+                if (permissions.isAdmin) {
                     appModiSection.classList.remove('hidden');
                 } else {
                     appModiSection.classList.add('hidden');
+                }
+            }
+            
+            // Register-Anfragen Section nur für Admin
+            const anfragenSection = document.getElementById('register-anfragen-section');
+            if (anfragenSection) {
+                if (permissions.isAdmin || permissions.canManageMembers) {
+                    anfragenSection.classList.remove('hidden');
+                } else {
+                    anfragenSection.classList.add('hidden');
+                }
+            }
+            
+            // Rollen Section nur für Admin
+            const rollenSection = document.getElementById('rollen-section');
+            if (rollenSection) {
+                if (permissions.isAdmin || permissions.canManageRoles) {
+                    rollenSection.classList.remove('hidden');
+                } else {
+                    rollenSection.classList.add('hidden');
+                }
+            }
+            
+            // Forum-Bereiche Section nur für Admin
+            const forumBereicheSection = document.getElementById('forum-bereiche-section');
+            if (forumBereicheSection) {
+                if (permissions.isAdmin || permissions.canCreateForumCategories) {
+                    forumBereicheSection.classList.remove('hidden');
+                } else {
+                    forumBereicheSection.classList.add('hidden');
                 }
             }
             
@@ -991,6 +1230,19 @@
             const strafenCheckbox = document.getElementById('setting-strafen');
             if (qrCheckbox) qrCheckbox.checked = appSettings.qrScannerEnabled;
             if (strafenCheckbox) strafenCheckbox.checked = appSettings.strafenEnabled;
+        }
+        
+        function saveApiUrl() {
+            const newUrl = document.getElementById('setting-api-url').value.trim();
+            if (newUrl) {
+                API_URL = newUrl;
+                localStorage.setItem('lkt-api-url', API_URL);
+                showToast('API URL gespeichert!');
+            } else {
+                API_URL = DEFAULT_API_URL;
+                localStorage.removeItem('lkt-api-url');
+                showToast('API URL zurückgesetzt');
+            }
         }
         
         async function saveAppSettings() {
@@ -1479,8 +1731,10 @@
             populateAttendanceEventSelect();
             populateQREventSelect();
             populateFilters();
+            populateWeekendSelect();
             renderBusseList();
             renderRegisterList();
+            renderEventsManageList();
             
             // Settings Checkboxen initialisieren
             applyAppSettings();
@@ -1498,7 +1752,8 @@
                 allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
                 renderMembersList(allMembersData);
                 
-                if (currentUser.actualRole !== 'chef' && appSettings.strafenEnabled) {
+                const permissions = currentUser.permissions || {};
+                if (permissions.canManageAnzeigen && appSettings.strafenEnabled) {
                     const anzeigeResult = await apiGet('getAnzeigen');
                     allAnzeigenData = anzeigeResult.anzeigen || [];
                     renderAnzeigenList(allAnzeigenData);
@@ -1519,8 +1774,15 @@
                 
                 // Load Brett - always try this
                 try {
+                    await loadForumBereiche();
                     await loadBrettPosts('gericht');
                 } catch (e) { console.log('Brett load error:', e); }
+                
+                // Load Rollen und Anfragen - nur für Admin
+                if (permissions.isAdmin || permissions.canManageRoles) {
+                    try { await loadRollen(); } catch (e) { console.log('Rollen load error:', e); }
+                    try { await loadRegisterAnfragen(); } catch (e) { console.log('Anfragen load error:', e); }
+                }
                 
             } catch (e) { console.error('Gericht view error:', e); }
         }
@@ -1768,11 +2030,20 @@
                 document.getElementById('member-detail-rate').textContent = rate + '%';
                 document.getElementById('member-detail-events').innerHTML = eventsHtml || '<div class="empty-state">Keine Einträge</div>';
                 
-                // Set current role
-                if (member) document.getElementById('member-detail-role').value = member.rolle || 'mitglied';
+                // Rollen-Dropdown dynamisch füllen
+                const roleSelect = document.getElementById('member-detail-role');
+                let roleHtml = '';
+                rollenData.forEach(r => {
+                    roleHtml += '<option value="' + r.id + '">' + r.name + '</option>';
+                });
+                roleSelect.innerHTML = roleHtml;
                 
-                // Show/hide role editing based on user role
-                const canEditRole = currentUser.actualRole === 'gericht';
+                // Set current role
+                if (member) roleSelect.value = member.rollenId || 'ROLE-MITGLIED';
+                
+                // Show/hide role editing based on permissions
+                const permissions = currentUser.permissions || {};
+                const canEditRole = permissions.isAdmin || permissions.canManageRoles;
                 document.getElementById('member-role-group').style.display = canEditRole ? 'block' : 'none';
                 document.getElementById('save-role-btn').style.display = canEditRole ? 'block' : 'none';
                 
@@ -1788,15 +2059,15 @@
         
         async function saveMemberRole() {
             if (!currentDetailMember) return;
-            const role = document.getElementById('member-detail-role').value;
+            const rollenId = document.getElementById('member-detail-role').value;
             showLoading();
             try {
-                const result = await apiPost({ action: 'updateMemberRole', name: currentDetailMember, role: role });
+                const result = await apiPost({ action: 'updateMemberRole', name: currentDetailMember, rollenId: rollenId });
                 if (result.error) showToast(result.error, true);
                 else {
                     showToast('Rolle aktualisiert!');
                     const member = allMembersData.find(m => m.name === currentDetailMember);
-                    if (member) member.rolle = role;
+                    if (member) member.rollenId = rollenId;
                 }
             } catch (e) { showToast('Fehler: ' + e.message, true); }
             hideLoading();
@@ -2052,7 +2323,8 @@
         // ============================================================
         async function loadBrettPosts(view) {
             try {
-                const result = await apiGet('getBrettPosts');
+                // Lade Posts für aktuellen Bereich
+                const result = await apiGet('getBrettPosts', { bereichId: currentForumBereichId });
                 brettPostsData = result.posts || [];
                 
                 // Load all comments
@@ -2075,11 +2347,12 @@
             }
             
             if (brettPostsData.length === 0) {
-                container.innerHTML = '<div class="empty-state">Noch keine Beiträge</div>';
+                container.innerHTML = '<div class="empty-state">Noch keine Beiträge in diesem Bereich</div>';
                 return;
             }
             
-            const canDelete = currentUser.role === 'gericht';
+            const permissions = currentUser.permissions || {};
+            const canDelete = permissions.isAdmin || permissions.canManageMembers;
             let html = '';
             
             brettPostsData.forEach(post => {
@@ -2129,7 +2402,7 @@
             
             showLoading();
             try {
-                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt });
+                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
                 if (result.error) { showToast(result.error, true); }
                 else {
                     showToast('Beitrag veröffentlicht!');
@@ -2148,7 +2421,7 @@
             
             showLoading();
             try {
-                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt });
+                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
                 if (result.error) { showToast(result.error, true); }
                 else {
                     showToast('Beitrag veröffentlicht!');
@@ -2454,7 +2727,7 @@
         }
         
         function showConfig() {
-            // Für Mitglieder: Sync-Funktion
+            // Für alle: Daten aktualisieren
             if (currentUser && currentUser.role === 'member') {
                 if (offlineQueue.length > 0) {
                     if (navigator.onLine) {
@@ -2466,15 +2739,10 @@
                     refreshData();
                     showToast('Daten synchronisiert!');
                 }
-                return;
-            }
-            
-            // Für Gericht: API-URL Konfiguration (lange drücken für erweiterte Optionen)
-            const newUrl = prompt('API URL (leer lassen für Standard):', API_URL);
-            if (newUrl !== null) {
-                API_URL = newUrl || DEFAULT_API_URL;
-                localStorage.setItem('lkt-api-url', API_URL);
-                showToast('API URL aktualisiert');
+            } else {
+                // Für Admin/Chef: auch nur Daten aktualisieren
+                refreshData();
+                showToast('Daten synchronisiert!');
             }
         }
         
@@ -2510,6 +2778,887 @@
                 { id: 'HF-10', week: 'Hauptfasnet', date: '16.02.2026', name: 'Rosenmontagssprung Fulda', location: 'Wolkenkratzer Fulda', time: '13:30' },
                 { id: 'HF-11', week: 'Hauptfasnet', date: '17.02.2026', name: 'Heimfahrt Fulda', location: '', time: '' },
             ];
+        }
+        
+        // ============================================================
+        // ROLLEN VERWALTUNG
+        // ============================================================
+        let rollenData = [];
+        let currentEditRolleId = null;
+        
+        async function loadRollen() {
+            try {
+                const result = await apiGet('getRollen');
+                rollenData = result.rollen || [];
+                renderRollenList();
+            } catch (e) { console.log('Rollen laden Fehler:', e); }
+        }
+        
+        function renderRollenList() {
+            const container = document.getElementById('rollen-list');
+            if (!container) return;
+            
+            if (rollenData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Rollen definiert</div>';
+                return;
+            }
+            
+            let html = '';
+            rollenData.forEach(rolle => {
+                const isSystem = ['ROLE-ADMIN', 'ROLE-MITGLIED'].includes(rolle.id);
+                const perms = [];
+                if (rolle.isAdmin) perms.push('Admin');
+                if (rolle.canManageMembers) perms.push('Mitglieder');
+                if (rolle.canManageEvents) perms.push('Events');
+                if (rolle.canManageAnzeigen) perms.push('Anzeigen');
+                
+                html += '<div class="rolle-item ' + (isSystem ? 'system-rolle' : '') + '">';
+                html += '<div><div class="rolle-name">' + rolle.name + (isSystem ? ' 🔒' : '') + '</div>';
+                html += '<div class="rolle-perms">' + (perms.length > 0 ? perms.join(', ') : 'Basis-Rechte') + '</div></div>';
+                html += '<div>';
+                html += '<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" onclick="editRolle(\'' + rolle.id + '\')">✏️</button>';
+                if (!isSystem) html += ' <button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteRolleConfirm(\'' + rolle.id + '\')">🗑️</button>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function showAddRolleModal() {
+            currentEditRolleId = null;
+            document.getElementById('rolle-modal-title').textContent = 'Neue Rolle erstellen';
+            document.getElementById('rolle-name-input').value = '';
+            // Reset alle Checkboxen
+            document.getElementById('perm-viewAllMembers').checked = false;
+            document.getElementById('perm-viewAllAttendance').checked = false;
+            document.getElementById('perm-viewOwnRegister').checked = true;
+            document.getElementById('perm-manageEvents').checked = false;
+            document.getElementById('perm-manageMembers').checked = false;
+            document.getElementById('perm-manageRoles').checked = false;
+            document.getElementById('perm-manageAnzeigen').checked = false;
+            document.getElementById('perm-createForumCategories').checked = false;
+            document.getElementById('perm-isAdmin').checked = false;
+            document.getElementById('perm-isRegisterleiter').checked = false;
+            document.getElementById('rolle-modal').classList.add('active');
+        }
+        
+        function editRolle(rollenId) {
+            const rolle = rollenData.find(r => r.id === rollenId);
+            if (!rolle) return;
+            
+            currentEditRolleId = rollenId;
+            document.getElementById('rolle-modal-title').textContent = 'Rolle bearbeiten: ' + rolle.name;
+            document.getElementById('rolle-name-input').value = rolle.name;
+            document.getElementById('perm-viewAllMembers').checked = rolle.canViewAllMembers;
+            document.getElementById('perm-viewAllAttendance').checked = rolle.canViewAllAttendance;
+            document.getElementById('perm-viewOwnRegister').checked = rolle.canViewOwnRegister;
+            document.getElementById('perm-manageEvents').checked = rolle.canManageEvents;
+            document.getElementById('perm-manageMembers').checked = rolle.canManageMembers;
+            document.getElementById('perm-manageRoles').checked = rolle.canManageRoles;
+            document.getElementById('perm-manageAnzeigen').checked = rolle.canManageAnzeigen;
+            document.getElementById('perm-createForumCategories').checked = rolle.canCreateForumCategories;
+            document.getElementById('perm-isAdmin').checked = rolle.isAdmin;
+            document.getElementById('perm-isRegisterleiter').checked = rolle.isRegisterleiter || false;
+            document.getElementById('rolle-modal').classList.add('active');
+        }
+        
+        function closeRolleModal() {
+            document.getElementById('rolle-modal').classList.remove('active');
+            currentEditRolleId = null;
+        }
+        
+        async function saveRolle() {
+            const name = document.getElementById('rolle-name-input').value.trim();
+            if (!name) { showToast('Name erforderlich', true); return; }
+            
+            const rolle = {
+                name: name,
+                canViewAllMembers: document.getElementById('perm-viewAllMembers').checked,
+                canViewAllAttendance: document.getElementById('perm-viewAllAttendance').checked,
+                canViewOwnRegister: document.getElementById('perm-viewOwnRegister').checked,
+                canManageEvents: document.getElementById('perm-manageEvents').checked,
+                canManageMembers: document.getElementById('perm-manageMembers').checked,
+                canManageRoles: document.getElementById('perm-manageRoles').checked,
+                canManageAnzeigen: document.getElementById('perm-manageAnzeigen').checked,
+                canCreateForumCategories: document.getElementById('perm-createForumCategories').checked,
+                isAdmin: document.getElementById('perm-isAdmin').checked,
+                isRegisterleiter: document.getElementById('perm-isRegisterleiter').checked
+            };
+            
+            showLoading();
+            try {
+                let result;
+                if (currentEditRolleId) {
+                    result = await apiPost({ action: 'updateRolle', rollenId: currentEditRolleId, rolle: rolle });
+                } else {
+                    result = await apiPost({ action: 'addRolle', rolle: rolle });
+                }
+                if (result.error) { showToast(result.error, true); }
+                else { showToast(result.message); closeRolleModal(); await loadRollen(); }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteRolleConfirm(rollenId) {
+            const rolle = rollenData.find(r => r.id === rollenId);
+            if (!confirm('Rolle "' + rolle.name + '" wirklich löschen? Mitglieder mit dieser Rolle werden zu "Mitglied" zurückgesetzt.')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteRolle', rollenId: rollenId });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadRollen(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // REGISTER-ANFRAGEN
+        // ============================================================
+        let registerAnfragenData = [];
+        
+        async function loadRegisterAnfragen() {
+            try {
+                const result = await apiGet('getRegisterAnfragen');
+                registerAnfragenData = result.anfragen || [];
+                renderRegisterAnfragen();
+                // Badge aktualisieren
+                const badge = document.getElementById('anfragen-count');
+                if (badge) badge.textContent = registerAnfragenData.length;
+            } catch (e) { console.log('Anfragen laden Fehler:', e); }
+        }
+        
+        function renderRegisterAnfragen() {
+            const container = document.getElementById('register-anfragen-list');
+            if (!container) return;
+            
+            if (registerAnfragenData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine offenen Anfragen</div>';
+                return;
+            }
+            
+            let html = '';
+            registerAnfragenData.forEach(anfrage => {
+                html += '<div class="anfrage-item">';
+                html += '<div class="anfrage-header"><strong>' + anfrage.memberName + '</strong></div>';
+                html += '<div class="anfrage-change">🎵 ' + (anfrage.altesRegister || 'Kein Register') + ' → ' + anfrage.neuesRegister + '</div>';
+                html += '<div class="anfrage-actions">';
+                html += '<button class="btn btn-primary" onclick="handleAnfrage(\'' + anfrage.id + '\', true)">✓ Genehmigen</button>';
+                html += '<button class="btn btn-danger" onclick="handleAnfrage(\'' + anfrage.id + '\', false)">✗ Ablehnen</button>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        async function handleAnfrage(requestId, approved) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'handleRegisterRequest', requestId: requestId, approved: approved });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadRegisterAnfragen(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // FORUM-BEREICHE
+        // ============================================================
+        let forumBereicheData = [];
+        let currentForumBereichId = 'FORUM-ALLGEMEIN';
+        
+        async function loadForumBereiche() {
+            try {
+                const result = await apiGet('getForumBereiche');
+                forumBereicheData = result.bereiche || [];
+                renderForumBereicheList();
+                renderForumTabs();
+            } catch (e) { console.log('Forum-Bereiche laden Fehler:', e); }
+        }
+        
+        function renderForumBereicheList() {
+            const container = document.getElementById('forum-bereiche-list');
+            if (!container) return;
+            
+            if (forumBereicheData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Bereiche</div>';
+                return;
+            }
+            
+            let html = '';
+            forumBereicheData.forEach(bereich => {
+                const isSystem = bereich.id === 'FORUM-ALLGEMEIN';
+                html += '<div class="bereich-item">';
+                html += '<div><strong>' + bereich.name + '</strong>';
+                html += '<div class="bereich-typ">' + getBereichTypLabel(bereich.typ) + '</div></div>';
+                if (!isSystem) html += '<button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteForumBereichConfirm(\'' + bereich.id + '\')">🗑️</button>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function getBereichTypLabel(typ) {
+            const labels = { allgemein: '🌍 Allgemein', register: '🎵 Register', admin: '🔧 Admin', custom: '📁 Benutzerdefiniert' };
+            return labels[typ] || typ;
+        }
+        
+        function renderForumTabs() {
+            // Für Mitglieder-Brett
+            const memberContainer = document.getElementById('forum-tabs-member');
+            // Für Admin-Brett
+            const adminContainer = document.getElementById('forum-tabs-admin');
+            
+            if (!memberContainer && !adminContainer) return;
+            
+            const permissions = currentUser.permissions || {};
+            const userRegisterId = currentUser.registerId;
+            
+            let html = '';
+            forumBereicheData.forEach(bereich => {
+                // Filtern basierend auf Berechtigungen
+                if (bereich.typ === 'admin' && !permissions.isAdmin) return;
+                if (bereich.typ === 'register' && bereich.registerId && bereich.registerId !== userRegisterId && !permissions.canViewAllMembers) return;
+                
+                const isActive = bereich.id === currentForumBereichId ? 'active' : '';
+                const isRegister = bereich.typ === 'register' ? 'register-tab' : '';
+                html += '<button class="forum-tab ' + isActive + ' ' + isRegister + '" onclick="selectForumBereich(\'' + bereich.id + '\')">' + bereich.name + '</button>';
+            });
+            
+            if (memberContainer) memberContainer.innerHTML = html;
+            if (adminContainer) adminContainer.innerHTML = html;
+        }
+        
+        function selectForumBereich(bereichId) {
+            currentForumBereichId = bereichId;
+            renderForumTabs();
+            loadBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+        }
+        
+        async function addNewForumBereich() {
+            const name = document.getElementById('new-bereich-name').value.trim();
+            const typ = document.getElementById('new-bereich-typ').value;
+            
+            if (!name) { showToast('Name erforderlich', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'addForumBereich', name: name, typ: typ, erstelltVon: currentUser.name });
+                if (result.error) showToast(result.error, true);
+                else { 
+                    showToast(result.message); 
+                    document.getElementById('new-bereich-name').value = '';
+                    await loadForumBereiche(); 
+                }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        async function deleteForumBereichConfirm(bereichId) {
+            const bereich = forumBereicheData.find(b => b.id === bereichId);
+            if (!confirm('Bereich "' + bereich.name + '" wirklich löschen? Posts werden zum Allgemein-Bereich verschoben.')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteForumBereich', bereichId: bereichId });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadForumBereiche(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // REGISTER-WECHSEL FÜR MITGLIEDER
+        // ============================================================
+        async function requestRegisterChange(neuesRegisterId) {
+            if (!currentUser.memberId) { showToast('Fehler: Keine MemberId', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'requestRegisterChange', memberId: currentUser.memberId, neuesRegisterId: neuesRegisterId });
+                if (result.error) showToast(result.error, true);
+                else if (result.approved) {
+                    showToast('Register geändert!');
+                    currentUser.registerId = neuesRegisterId;
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    populateProfileSelects();
+                } else {
+                    showToast('Anfrage gesendet - Admin muss bestätigen');
+                }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // WOCHENEND-ÜBERSICHT
+        // ============================================================
+        let weekendAttendanceData = {};
+        
+        function populateWeekendSelect() {
+            const select = document.getElementById('weekend-select');
+            if (!select) return;
+            
+            // Sammle alle Wochen aus Events
+            const weeks = new Set();
+            eventsData.forEach(e => {
+                if (e.week) weeks.add(e.week);
+            });
+            
+            let html = '<option value="">-- Wochenende wählen --</option>';
+            Array.from(weeks).sort().forEach(week => {
+                html += '<option value="' + week + '">' + week + '</option>';
+            });
+            select.innerHTML = html;
+        }
+        
+        async function loadWeekendOverview() {
+            const week = document.getElementById('weekend-select').value;
+            const container = document.getElementById('weekend-overview');
+            const exportBtn = document.getElementById('weekend-export-btn');
+            
+            if (!week) {
+                container.innerHTML = '';
+                if (exportBtn) exportBtn.classList.add('hidden');
+                return;
+            }
+            
+            showLoading();
+            if (exportBtn) exportBtn.classList.remove('hidden');
+            
+            // Events für dieses Wochenende filtern
+            const weekEvents = eventsData.filter(e => e.week === week);
+            
+            if (weekEvents.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Auftritte für dieses Wochenende</div>';
+                if (exportBtn) exportBtn.classList.add('hidden');
+                hideLoading();
+                return;
+            }
+            
+            // Anwesenheitsdaten für alle Events laden
+            try {
+                for (const event of weekEvents) {
+                    const result = await apiGet('getEventAttendance', { eventId: event.id });
+                    weekendAttendanceData[event.id] = result.attendance || [];
+                }
+            } catch (e) {
+                console.log('Weekend attendance error:', e);
+            }
+            
+            renderWeekendOverview(weekEvents, week);
+            hideLoading();
+        }
+        
+        function renderWeekendOverview(weekEvents, week) {
+            const container = document.getElementById('weekend-overview');
+            
+            // Gesamtstatistik berechnen
+            let totalPresent = 0, totalAbsent = 0, totalUnknown = 0;
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                att.forEach(a => {
+                    if (a.status === 'anwesend') totalPresent++;
+                    else if (a.status === 'abwesend') totalAbsent++;
+                });
+                // Unbekannt = Mitglieder ohne Eintrag
+                const knownNames = att.map(a => a.name.toLowerCase());
+                allMembersData.forEach(m => {
+                    if (!knownNames.includes(m.name.toLowerCase())) totalUnknown++;
+                });
+            });
+            
+            let html = '';
+            
+            // Zusammenfassung
+            html += '<div class="weekend-summary">';
+            html += '<div class="stat-box"><div class="number" style="color: var(--accent-green);">' + totalPresent + '</div><div class="label">Anwesend</div></div>';
+            html += '<div class="stat-box"><div class="number" style="color: var(--accent-red);">' + totalAbsent + '</div><div class="label">Abwesend</div></div>';
+            html += '<div class="stat-box"><div class="number">' + weekEvents.length + '</div><div class="label">Auftritte</div></div>';
+            html += '</div>';
+            
+            // Events anzeigen
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                const present = att.filter(a => a.status === 'anwesend').length;
+                const absent = att.filter(a => a.status === 'abwesend').length;
+                
+                // Register-Statistik
+                const registerStats = {};
+                registerData.forEach(r => {
+                    registerStats[r.id] = { name: r.name, present: 0, total: 0 };
+                });
+                registerStats['none'] = { name: 'Ohne Register', present: 0, total: 0 };
+                
+                // Mitglieder pro Register zählen
+                allMembersData.forEach(m => {
+                    const regId = m.registerId || 'none';
+                    if (registerStats[regId]) registerStats[regId].total++;
+                });
+                
+                // Anwesende pro Register zählen
+                att.filter(a => a.status === 'anwesend').forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].present++;
+                });
+                
+                html += '<div class="weekend-event-card" onclick="showWeekendEventDetail(\'' + event.id + '\')">';
+                html += '<div class="event-name">' + event.name + '</div>';
+                html += '<div class="event-info">📍 ' + (event.location || '-') + ' | 🕐 ' + (event.time || '-') + ' | ' + (event.date || '') + '</div>';
+                html += '<div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">';
+                html += '<span style="color: var(--accent-green);">✓ ' + present + '</span>';
+                html += '<span style="color: var(--accent-red);">✗ ' + absent + '</span>';
+                html += '</div>';
+                
+                // Register-Balken
+                html += '<div class="register-bars">';
+                Object.values(registerStats).filter(r => r.total > 0).forEach(r => {
+                    const percent = r.total > 0 ? Math.round(r.present / r.total * 100) : 0;
+                    html += '<div class="register-bar">';
+                    html += '<div class="bar-label">' + r.name + '</div>';
+                    html += '<div class="bar-container"><div class="bar-fill" style="width: ' + percent + '%;"></div></div>';
+                    html += '<div class="bar-count">' + r.present + '/' + r.total + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '</div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function showWeekendEventDetail(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            const att = weekendAttendanceData[eventId] || [];
+            const present = att.filter(a => a.status === 'anwesend');
+            const absent = att.filter(a => a.status === 'abwesend');
+            
+            // Unbekannte Mitglieder (ohne Eintrag)
+            const knownNames = att.map(a => a.name.toLowerCase());
+            const unknown = allMembersData.filter(m => !knownNames.includes(m.name.toLowerCase()));
+            
+            document.getElementById('weekend-event-title').textContent = event.name;
+            
+            // Stats
+            let statsHtml = '<div style="display: flex; gap: 1rem; justify-content: center;">';
+            statsHtml += '<span style="color: var(--accent-green); font-size: 1.2rem;">✓ ' + present.length + ' anwesend</span>';
+            statsHtml += '<span style="color: var(--accent-red); font-size: 1.2rem;">✗ ' + absent.length + ' abwesend</span>';
+            statsHtml += '<span style="color: var(--text-secondary); font-size: 1.2rem;">? ' + unknown.length + ' unbekannt</span>';
+            statsHtml += '</div>';
+            document.getElementById('weekend-event-stats').innerHTML = statsHtml;
+            
+            // Register-Statistik
+            const registerStats = {};
+            registerData.forEach(r => {
+                registerStats[r.id] = { name: r.name, present: [], absent: [], unknown: [] };
+            });
+            registerStats['none'] = { name: 'Ohne Register', present: [], absent: [], unknown: [] };
+            
+            // Mitglieder nach Register gruppieren
+            present.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regId = member ? (member.registerId || 'none') : 'none';
+                if (registerStats[regId]) registerStats[regId].present.push(a.name);
+            });
+            
+            absent.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regId = member ? (member.registerId || 'none') : 'none';
+                if (registerStats[regId]) registerStats[regId].absent.push({ name: a.name, comment: a.comment });
+            });
+            
+            unknown.forEach(m => {
+                const regId = m.registerId || 'none';
+                if (registerStats[regId]) registerStats[regId].unknown.push(m.name);
+            });
+            
+            let regHtml = '';
+            Object.values(registerStats).filter(r => r.present.length + r.absent.length + r.unknown.length > 0).forEach(r => {
+                const total = r.present.length + r.absent.length + r.unknown.length;
+                regHtml += '<div style="margin-bottom: 0.75rem; padding: 0.5rem; background: var(--bg-input); border-radius: 8px;">';
+                regHtml += '<strong>' + r.name + '</strong>: ';
+                regHtml += '<span style="color: var(--accent-green);">' + r.present.length + '✓</span> / ';
+                regHtml += '<span style="color: var(--accent-red);">' + r.absent.length + '✗</span> / ';
+                regHtml += '<span style="color: var(--text-secondary);">' + r.unknown.length + '?</span>';
+                regHtml += ' (von ' + total + ')';
+                regHtml += '</div>';
+            });
+            document.getElementById('weekend-event-registers').innerHTML = regHtml || '<div class="empty-state">Keine Register-Daten</div>';
+            
+            // Mitglieder-Liste
+            let membersHtml = '';
+            
+            // Anwesende
+            present.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regName = member && member.registerId ? (registerData.find(r => r.id === member.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row anwesend">';
+                membersHtml += '<div><strong>' + a.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '') + '</div>';
+                membersHtml += '<div class="status-icon">✓</div>';
+                membersHtml += '</div>';
+            });
+            
+            // Abwesende
+            absent.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regName = member && member.registerId ? (registerData.find(r => r.id === member.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row abwesend">';
+                membersHtml += '<div><strong>' + a.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '');
+                if (a.comment) membersHtml += '<br><span style="font-size: 0.8rem; color: var(--text-secondary);">💬 ' + escapeHtml(a.comment) + '</span>';
+                membersHtml += '</div>';
+                membersHtml += '<div class="status-icon">✗</div>';
+                membersHtml += '</div>';
+            });
+            
+            // Unbekannte
+            unknown.forEach(m => {
+                const regName = m.registerId ? (registerData.find(r => r.id === m.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row unknown">';
+                membersHtml += '<div><strong>' + m.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '') + '</div>';
+                membersHtml += '<div class="status-icon">?</div>';
+                membersHtml += '</div>';
+            });
+            
+            document.getElementById('weekend-event-members').innerHTML = membersHtml || '<div class="empty-state">Keine Mitglieder</div>';
+            
+            document.getElementById('weekend-event-modal').classList.add('active');
+        }
+        
+        function closeWeekendEventModal() {
+            document.getElementById('weekend-event-modal').classList.remove('active');
+        }
+        
+        // ============================================================
+        // EVENT BEARBEITEN
+        // ============================================================
+        
+        function renderEventsManageList() {
+            const container = document.getElementById('events-manage-list');
+            if (!container) return;
+            
+            if (eventsData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Events</div>';
+                return;
+            }
+            
+            let html = '';
+            eventsData.forEach(event => {
+                html += '<div class="event-manage-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">';
+                html += '<div><strong>' + event.name + '</strong><br><span style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + ' | ' + (event.week || '') + '</span></div>';
+                html += '<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" onclick="openEventEditModal(\'' + event.id + '\')">✏️</button>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function openEventEditModal(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            document.getElementById('edit-event-id').value = eventId;
+            document.getElementById('edit-event-name').value = event.name || '';
+            document.getElementById('edit-event-week').value = event.week || '';
+            document.getElementById('edit-event-date').value = event.date || '';
+            document.getElementById('edit-event-location').value = event.location || '';
+            document.getElementById('edit-event-time').value = event.time || '';
+            
+            document.getElementById('event-edit-modal').classList.add('active');
+        }
+        
+        function closeEventEditModal() {
+            document.getElementById('event-edit-modal').classList.remove('active');
+        }
+        
+        async function saveEventEdit() {
+            const eventId = document.getElementById('edit-event-id').value;
+            const eventData = {
+                name: document.getElementById('edit-event-name').value.trim(),
+                week: document.getElementById('edit-event-week').value.trim(),
+                date: document.getElementById('edit-event-date').value.trim(),
+                location: document.getElementById('edit-event-location').value.trim(),
+                time: document.getElementById('edit-event-time').value.trim()
+            };
+            
+            if (!eventData.name) { showToast('Name erforderlich', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'updateEvent', eventId: eventId, event: eventData });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Event aktualisiert!');
+                    closeEventEditModal();
+                    await refreshData();
+                    renderEventsManageList();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteEventFromModal() {
+            const eventId = document.getElementById('edit-event-id').value;
+            const event = eventsData.find(e => e.id === eventId);
+            if (!confirm('Event "' + event.name + '" wirklich löschen?')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteEvent', eventId: eventId });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Event gelöscht!');
+                    closeEventEditModal();
+                    await refreshData();
+                    renderEventsManageList();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // PUSH BENACHRICHTIGUNGEN
+        // ============================================================
+        
+        let pushSubscription = null;
+        
+        async function initPushNotifications() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                document.getElementById('push-not-supported')?.classList.remove('hidden');
+                document.getElementById('push-settings-container')?.classList.add('hidden');
+                return;
+            }
+            
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                pushSubscription = await registration.pushManager.getSubscription();
+                
+                if (pushSubscription) {
+                    document.getElementById('push-enable-btn')?.classList.add('hidden');
+                    document.getElementById('push-settings')?.classList.remove('hidden');
+                    await loadPushSettings();
+                }
+            } catch (e) {
+                console.log('Push init error:', e);
+            }
+        }
+        
+        async function enablePushNotifications() {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    showToast('Benachrichtigungen wurden abgelehnt', true);
+                    return;
+                }
+                
+                const registration = await navigator.serviceWorker.ready;
+                
+                // VAPID Public Key - muss durch echten Key ersetzt werden
+                const vapidPublicKey = 'YOUR_VAPID_PUBLIC_KEY_HERE';
+                
+                // Für lokale Tests ohne echten VAPID Key
+                if (vapidPublicKey === 'YOUR_VAPID_PUBLIC_KEY_HERE') {
+                    // Simuliere Subscription für lokale Tests
+                    showToast('Push aktiviert (Demo-Modus)');
+                    document.getElementById('push-enable-btn').classList.add('hidden');
+                    document.getElementById('push-settings').classList.remove('hidden');
+                    savePushSettingsLocal();
+                    return;
+                }
+                
+                pushSubscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                });
+                
+                // Subscription an Server senden
+                if (currentUser && currentUser.memberId) {
+                    await apiPost({
+                        action: 'savePushSubscription',
+                        memberId: currentUser.memberId,
+                        subscription: pushSubscription.toJSON()
+                    });
+                }
+                
+                showToast('Benachrichtigungen aktiviert!');
+                document.getElementById('push-enable-btn').classList.add('hidden');
+                document.getElementById('push-settings').classList.remove('hidden');
+                savePushSettingsLocal();
+                
+            } catch (e) {
+                console.error('Push subscription error:', e);
+                showToast('Fehler beim Aktivieren: ' + e.message, true);
+            }
+        }
+        
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+        
+        async function loadPushSettings() {
+            if (!currentUser || !currentUser.memberId) return;
+            
+            try {
+                const result = await apiGet('getPushSettings', { memberId: currentUser.memberId });
+                const settings = result.settings || {};
+                
+                document.getElementById('push-event-reminder').checked = settings.eventReminder !== false;
+                document.getElementById('push-reminder-time').value = settings.reminderTime || '60';
+                document.getElementById('push-forum-posts').checked = settings.forumPosts !== false;
+                document.getElementById('push-register-posts').checked = settings.registerPosts !== false;
+                
+                // Reminder-Zeit nur anzeigen wenn Event-Reminder aktiv
+                updateReminderTimeVisibility();
+            } catch (e) {
+                console.log('Push settings load error:', e);
+            }
+        }
+        
+        async function savePushSettingsLocal() {
+            if (!currentUser || !currentUser.memberId) return;
+            
+            const settings = {
+                eventReminder: document.getElementById('push-event-reminder').checked,
+                reminderTime: document.getElementById('push-reminder-time').value,
+                forumPosts: document.getElementById('push-forum-posts').checked,
+                registerPosts: document.getElementById('push-register-posts').checked
+            };
+            
+            updateReminderTimeVisibility();
+            
+            try {
+                await apiPost({ action: 'savePushSettings', memberId: currentUser.memberId, settings: settings });
+                showToast('Einstellungen gespeichert!');
+            } catch (e) {
+                console.log('Push settings save error:', e);
+            }
+        }
+        
+        function updateReminderTimeVisibility() {
+            const reminderEnabled = document.getElementById('push-event-reminder').checked;
+            const timeGroup = document.getElementById('reminder-time-group');
+            if (timeGroup) {
+                timeGroup.style.display = reminderEnabled ? 'block' : 'none';
+            }
+        }
+        
+        // ============================================================
+        // PDF EXPORT WOCHENEND-ÜBERSICHT
+        // ============================================================
+        
+        async function exportWeekendPDF() {
+            const week = document.getElementById('weekend-select').value;
+            if (!week) { showToast('Bitte Wochenende wählen', true); return; }
+            
+            showLoading();
+            
+            const weekEvents = eventsData.filter(e => e.week === week);
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>Wochenend-Übersicht ' + week + '</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; }';
+            content += 'h1 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }';
+            content += 'h2 { color: #374151; margin-top: 30px; }';
+            content += '.event-card { border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 15px 0; page-break-inside: avoid; }';
+            content += '.event-title { font-size: 18px; font-weight: bold; color: #1e40af; }';
+            content += '.event-info { color: #666; margin: 5px 0; }';
+            content += '.stats { display: flex; gap: 20px; margin: 10px 0; }';
+            content += '.stat { padding: 5px 15px; border-radius: 5px; }';
+            content += '.present { background: #d1fae5; color: #065f46; }';
+            content += '.absent { background: #fee2e2; color: #991b1b; }';
+            content += '.register-table { width: 100%; border-collapse: collapse; margin-top: 10px; }';
+            content += '.register-table th, .register-table td { border: 1px solid #ddd; padding: 8px; text-align: left; }';
+            content += '.register-table th { background: #f3f4f6; }';
+            content += '.member-list { columns: 2; column-gap: 20px; }';
+            content += '.member-item { padding: 3px 0; }';
+            content += '.member-item.present { color: #065f46; }';
+            content += '.member-item.absent { color: #991b1b; }';
+            content += '@media print { .event-card { page-break-inside: avoid; } }';
+            content += '</style></head><body>';
+            
+            content += '<h1>🎺 LKT Tracker - Wochenend-Übersicht ' + week + '</h1>';
+            content += '<p>Erstellt am: ' + new Date().toLocaleString('de-DE') + '</p>';
+            
+            // Gesamt-Statistik
+            let totalPresent = 0, totalAbsent = 0;
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                totalPresent += att.filter(a => a.status === 'anwesend').length;
+                totalAbsent += att.filter(a => a.status === 'abwesend').length;
+            });
+            
+            content += '<div class="stats">';
+            content += '<div class="stat present">✓ ' + totalPresent + ' Anwesend (gesamt)</div>';
+            content += '<div class="stat absent">✗ ' + totalAbsent + ' Abwesend (gesamt)</div>';
+            content += '<div class="stat">' + weekEvents.length + ' Auftritte</div>';
+            content += '</div>';
+            
+            // Events
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                const present = att.filter(a => a.status === 'anwesend');
+                const absent = att.filter(a => a.status === 'abwesend');
+                
+                content += '<div class="event-card">';
+                content += '<div class="event-title">' + event.name + '</div>';
+                content += '<div class="event-info">📍 ' + (event.location || '-') + ' | 🕐 ' + (event.time || '-') + ' | ' + (event.date || '') + '</div>';
+                content += '<div class="stats">';
+                content += '<div class="stat present">✓ ' + present.length + '</div>';
+                content += '<div class="stat absent">✗ ' + absent.length + '</div>';
+                content += '</div>';
+                
+                // Register-Statistik
+                const registerStats = {};
+                registerData.forEach(r => { registerStats[r.id] = { name: r.name, present: 0, total: 0 }; });
+                registerStats['none'] = { name: 'Ohne Register', present: 0, total: 0 };
+                
+                allMembersData.forEach(m => {
+                    const regId = m.registerId || 'none';
+                    if (registerStats[regId]) registerStats[regId].total++;
+                });
+                
+                present.forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].present++;
+                });
+                
+                content += '<table class="register-table">';
+                content += '<tr><th>Register</th><th>Anwesend</th><th>Gesamt</th><th>Quote</th></tr>';
+                Object.values(registerStats).filter(r => r.total > 0).forEach(r => {
+                    const quote = r.total > 0 ? Math.round(r.present / r.total * 100) : 0;
+                    content += '<tr><td>' + r.name + '</td><td>' + r.present + '</td><td>' + r.total + '</td><td>' + quote + '%</td></tr>';
+                });
+                content += '</table>';
+                
+                // Teilnehmerliste
+                content += '<h3>Teilnehmer</h3>';
+                content += '<div class="member-list">';
+                present.forEach(a => {
+                    content += '<div class="member-item present">✓ ' + a.name + '</div>';
+                });
+                absent.forEach(a => {
+                    content += '<div class="member-item absent">✗ ' + a.name + (a.comment ? ' (' + a.comment + ')' : '') + '</div>';
+                });
+                content += '</div>';
+                content += '</div>';
+            });
+            
+            content += '</body></html>';
+            
+            // PDF öffnen
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
         }
     </script>
 </body>
