@@ -1605,8 +1605,34 @@
         }
         
         function updateMemberStats() {
-            const attended = Object.values(attendanceData).filter(v => v === true).length;
-            const absent = Object.values(attendanceData).filter(v => v === false).length;
+            // Nur vergangene Events zählen (bis heute)
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            
+            const pastEvents = eventsData.filter(event => {
+                if (!event.date) return false;
+                // Datum parsen (dd.MM.yyyy)
+                const parts = event.date.split('.');
+                if (parts.length === 3) {
+                    const eventDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                    return eventDate <= today;
+                }
+                return false;
+            });
+            
+            let attended = 0;
+            let absent = 0;
+            
+            pastEvents.forEach(event => {
+                const status = attendanceData[event.id];
+                if (status === true) {
+                    attended++;
+                } else {
+                    // Nicht eingecheckt = abwesend (egal ob abgesagt oder gar nichts)
+                    absent++;
+                }
+            });
+            
             const total = attended + absent;
             const rate = total > 0 ? Math.round(attended / total * 100) : 0;
             document.getElementById('my-attended').textContent = attended;
