@@ -279,8 +279,10 @@
         <!-- Gericht Navigation -->
         <nav class="nav-tabs hidden" id="gericht-nav">
             <button class="nav-tab active" data-tab="overview">📊 Übersicht</button>
-            <button class="nav-tab" data-tab="brett-gericht">📋 Brett</button>
+            <button class="nav-tab" data-tab="my-events">📅 Meine Auftritte</button>
             <button class="nav-tab" data-tab="attendance">✅ Anwesenheit</button>
+            <button class="nav-tab" data-tab="qr-codes" id="nav-qr-codes">📱 QR-Codes</button>
+            <button class="nav-tab" data-tab="brett-gericht">📋 Brett</button>
             <button class="nav-tab" data-tab="members">👥 Mitglieder</button>
             <button class="nav-tab" data-tab="anzeigen">⚖️ Anzeigen</button>
             <button class="nav-tab" data-tab="rankings">🏆 Ranglisten</button>
@@ -464,6 +466,32 @@
                 <div class="section-header"><h2>🎵 Register-Statistik</h2></div>
                 <div id="register-stats-list"></div>
                 <button class="btn btn-secondary btn-block" onclick="exportRegisterStatsPDF()">📄 Register-Statistik PDF</button>
+            </div>
+            
+            <!-- Meine Auftritte Tab (für Admin/Chef zum selbst anmelden) -->
+            <div id="my-events-tab" class="screen">
+                <div class="section-header"><h2>📅 Meine Auftritte</h2></div>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Hier kannst du dich selbst zu Auftritten anmelden.</p>
+                <div id="my-events-list"></div>
+            </div>
+            
+            <!-- QR-Codes Tab -->
+            <div id="qr-codes-tab" class="screen">
+                <div class="section-header"><h2>📱 Auftritts-QR-Codes</h2></div>
+                <div class="info-box" style="background: rgba(234,179,8,0.1); border-color: var(--accent-yellow);">
+                    <p>Zeige den QR-Code beim Auftritt - Mitglieder können ihn scannen um einzuchecken.</p>
+                </div>
+                <div class="input-group">
+                    <label>Auftritt auswählen</label>
+                    <select id="qr-event-select" onchange="showEventQR()"><option value="">-- Auftritt wählen --</option></select>
+                </div>
+                <div id="event-qr-display" class="hidden" style="text-align: center; padding: 1rem;">
+                    <div id="event-qr-canvas" style="display: inline-block; background: white; padding: 1rem; border-radius: 12px;"></div>
+                    <p style="margin-top: 1rem; font-weight: 700; font-size: 1.2rem;" id="event-qr-label"></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);" id="event-qr-sublabel"></p>
+                    <button class="btn btn-primary btn-block" style="margin-top: 1rem;" onclick="downloadEventQRPDF()">📄 QR-Code als PDF</button>
+                    <button class="btn btn-secondary btn-block" style="margin-top: 0.5rem;" onclick="downloadEventQR()">📥 QR als Bild</button>
+                </div>
             </div>
             
             <!-- Schwarzes Brett Tab (Gericht) -->
@@ -656,16 +684,6 @@
                     <div class="input-group"><label>Ort</label><input type="text" id="new-event-location" placeholder="z.B. Vereinsheim"></div>
                     <div class="input-group"><label>Uhrzeit</label><input type="text" id="new-event-time" placeholder="z.B. 20:00"></div>
                     <button class="btn btn-primary btn-block" onclick="addNewEvent()">+ Event hinzufügen</button>
-                    <div class="section-header"><h2>QR-Code für Event</h2></div>
-                    <div class="input-group">
-                        <select id="qr-event-select" onchange="showEventQR()"><option value="">-- Event für QR wählen --</option></select>
-                    </div>
-                    <div id="event-qr-display" class="hidden" style="text-align: center; padding: 1rem;">
-                        <div id="event-qr-canvas"></div>
-                        <p style="margin-top: 0.5rem; font-weight: 700;" id="event-qr-label"></p>
-                        <p style="font-size: 0.8rem; color: var(--text-secondary);" id="event-qr-sublabel"></p>
-                        <button class="btn btn-secondary" onclick="downloadEventQR()">📥 QR herunterladen</button>
-                    </div>
                 </div>
                 
                 <button class="btn btn-danger btn-block" style="margin-top: 2rem;" onclick="logout()">🚪 Ausloggen</button>
@@ -726,6 +744,27 @@
         </div>
     </div>
     
+    <!-- Teilnehmer Modal (Wer ist dabei?) -->
+    <div class="modal-overlay" id="participants-modal">
+        <div class="modal" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+            <h3 id="participants-modal-title">Wer ist dabei?</h3>
+            <div id="participants-loading" style="text-align: center; padding: 2rem;">
+                <div class="loading-spinner"></div>
+                <p>Lade Teilnehmer...</p>
+            </div>
+            <div id="participants-content" class="hidden">
+                <div id="participants-stats" style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;"></div>
+                <div class="section-header"><h4>Nach Register</h4></div>
+                <div id="participants-by-register"></div>
+                <div class="section-header" style="margin-top: 1rem;"><h4>Teilnehmerliste</h4></div>
+                <div id="participants-list" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="btn btn-secondary btn-block" onclick="closeParticipantsModal()">Schließen</button>
+            </div>
+        </div>
+    </div>
+    
     <!-- Member Detail Modal -->
     <div class="modal-overlay" id="member-detail-modal">
         <div class="modal" style="max-width: 500px;">
@@ -764,7 +803,7 @@
         // ============================================================
         // CONFIG & STATE
         // ============================================================
-        const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbwxD6P2S4diBwI5etPTHHpuxhHj675TYENqRhPTj4EXXOAs9XI7BMuRa0T9BBkMu4hM/exec';
+        const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzl7-8o6KFvshHn37HaLe5U9WSLfPE1b1wlxFTHv6FNIC9C2nTF5189Cui-Aanx3fOt/exec';
         let API_URL = localStorage.getItem('lkt-api-url') || DEFAULT_API_URL;
         let currentUser = JSON.parse(localStorage.getItem('lkt-user') || 'null');
         let isOfflineMode = localStorage.getItem('lkt-offline') === 'true';
@@ -797,6 +836,58 @@
         let currentDetailMember = null;
         
         let offlineQueue = JSON.parse(localStorage.getItem('lkt-offline-queue') || '[]');
+        
+        // ============================================================
+        // LOKALER CACHE
+        // ============================================================
+        const CACHE_KEY = 'lkt-data-cache';
+        const CACHE_EXPIRY = 5 * 60 * 1000; // 5 Minuten
+        
+        function saveToCache(key, data) {
+            try {
+                const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+                cache[key] = { data: data, timestamp: Date.now() };
+                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+            } catch (e) { console.log('Cache save error:', e); }
+        }
+        
+        function getFromCache(key) {
+            try {
+                const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+                if (cache[key] && (Date.now() - cache[key].timestamp) < CACHE_EXPIRY) {
+                    return cache[key].data;
+                }
+            } catch (e) { console.log('Cache read error:', e); }
+            return null;
+        }
+        
+        function loadCachedData() {
+            // Sofort lokale Daten laden
+            const cached = {
+                events: getFromCache('events'),
+                busse: getFromCache('busse'),
+                register: getFromCache('register'),
+                members: getFromCache('members'),
+                stats: getFromCache('stats'),
+                settings: getFromCache('settings'),
+                brett: getFromCache('brett'),
+                forumBereiche: getFromCache('forumBereiche')
+            };
+            
+            if (cached.events) eventsData = cached.events;
+            if (cached.busse) busseData = cached.busse;
+            if (cached.register) registerData = cached.register;
+            if (cached.members) allMembersData = cached.members;
+            if (cached.stats) statsData = cached.stats;
+            if (cached.settings) {
+                appSettings.qrScannerEnabled = cached.settings.qrScannerEnabled !== 'false';
+                appSettings.strafenEnabled = cached.settings.strafenEnabled !== 'false';
+            }
+            if (cached.brett) brettPostsData = cached.brett;
+            if (cached.forumBereiche) forumBereicheData = cached.forumBereiche;
+            
+            return cached;
+        }
         
         // ============================================================
         // INITIALIZATION
@@ -1072,68 +1163,25 @@
         // ============================================================
         async function loadData() {
             try {
-                // Load settings first
-                if (navigator.onLine && !isOfflineMode) {
-                    try {
-                        const settingsResult = await apiGet('getSettings');
-                        if (settingsResult.settings) {
-                            appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false';
-                            appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false';
-                        }
-                        applyAppSettings();
-                    } catch (e) { console.log('Could not load settings'); }
-                }
-                
-                // Load busse and register
-                if (navigator.onLine && !isOfflineMode) {
-                    try {
-                        const busseResult = await apiGet('getBusse');
-                        busseData = busseResult.busse || [];
-                        const registerResult = await apiGet('getRegister');
-                        registerData = registerResult.register || [];
-                    } catch (e) { console.log('Could not load busse/register'); }
-                }
-                
-                // Load events
-                if (!isOfflineMode && navigator.onLine) {
-                    try {
-                        const eventsResult = await apiGet('getEvents');
-                        if (eventsResult.events) eventsData = eventsResult.events;
-                    } catch (e) { eventsData = getOfflineEvents(); }
-                }
+                // SOFORT: Cached Daten laden und anzeigen
+                loadCachedData();
                 if (eventsData.length === 0) eventsData = getOfflineEvents();
                 
+                // Sofort UI rendern mit gecachten Daten
                 if (currentUser.role === 'member') {
-                    if (!isOfflineMode && navigator.onLine) {
-                        try {
-                            const attResult = await apiGet('getMemberAttendance', { name: currentUser.name });
-                            if (!attResult.error) {
-                                attendanceData = attResult.attendance || {};
-                                commentsData = attResult.comments || {};
-                                currentUser.busId = attResult.busId;
-                                currentUser.registerId = attResult.registerId;
-                                localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-                                saveLocalAttendance();
-                            }
-                            // Load Zusagen
-                            const zusagenResult = await apiGet('getZusagen');
-                            zusagenData = zusagenResult.zusagen || {};
-                        } catch (e) { loadLocalAttendance(); }
-                        if (offlineQueue.length > 0) syncOfflineQueue();
-                    } else { loadLocalAttendance(); }
+                    loadLocalAttendance();
                     renderMemberView();
                     populateProfileSelects();
                     populateRegisterEventSelect();
-                    // Forum-Bereiche laden und dann Brett
-                    try { await loadForumBereiche(); } catch (e) { console.log('Forum-Bereiche error:', e); }
-                    loadBrettPosts('member');
-                    // Push-Benachrichtigungen initialisieren
-                    initPushNotifications();
+                    renderForumTabs();
+                    renderBrettPostsFromCache();
                 } else {
-                    if (!isOfflineMode && navigator.onLine) {
-                        try { statsData = await apiGet('getStats'); } catch (e) {}
-                    }
                     renderGerichtView();
+                }
+                
+                // DANN: Im Hintergrund frische Daten laden
+                if (navigator.onLine && !isOfflineMode) {
+                    loadFreshDataInBackground();
                 }
             } catch (e) {
                 console.error('loadData error:', e);
@@ -1141,16 +1189,120 @@
             }
         }
         
+        async function loadFreshDataInBackground() {
+            try {
+                // Parallel laden für bessere Performance
+                const promises = [
+                    apiGet('getSettings').catch(e => null),
+                    apiGet('getBusse').catch(e => null),
+                    apiGet('getRegister').catch(e => null),
+                    apiGet('getEvents').catch(e => null)
+                ];
+                
+                const [settingsResult, busseResult, registerResult, eventsResult] = await Promise.all(promises);
+                
+                // Settings
+                if (settingsResult?.settings) {
+                    appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false';
+                    appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false';
+                    saveToCache('settings', settingsResult.settings);
+                    applyAppSettings();
+                }
+                
+                // Busse
+                if (busseResult?.busse) {
+                    busseData = busseResult.busse;
+                    saveToCache('busse', busseData);
+                }
+                
+                // Register
+                if (registerResult?.register) {
+                    registerData = registerResult.register;
+                    saveToCache('register', registerData);
+                }
+                
+                // Events
+                if (eventsResult?.events) {
+                    eventsData = eventsResult.events;
+                    saveToCache('events', eventsData);
+                }
+                
+                // Aktualisiere UI mit frischen Daten
+                if (currentUser.role === 'member') {
+                    // Member-spezifische Daten laden
+                    try {
+                        const attResult = await apiGet('getMemberAttendance', { name: currentUser.name });
+                        if (!attResult.error) {
+                            attendanceData = attResult.attendance || {};
+                            commentsData = attResult.comments || {};
+                            currentUser.busId = attResult.busId;
+                            currentUser.registerId = attResult.registerId;
+                            localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                            saveLocalAttendance();
+                        }
+                        const zusagenResult = await apiGet('getZusagen');
+                        zusagenData = zusagenResult.zusagen || {};
+                    } catch (e) { console.log('Member data error:', e); }
+                    
+                    if (offlineQueue.length > 0) syncOfflineQueue();
+                    renderMemberView();
+                    populateProfileSelects();
+                    populateRegisterEventSelect();
+                    
+                    // Forum laden
+                    try { await loadForumBereiche(); } catch (e) {}
+                    loadBrettPosts('member');
+                    initPushNotifications();
+                } else {
+                    // Gericht-spezifische Daten - AUCH eigene Anwesenheit laden!
+                    try { statsData = await apiGet('getStats'); saveToCache('stats', statsData); } catch (e) {}
+                    
+                    // Eigene Anwesenheit für "Meine Auftritte" Tab laden
+                    try {
+                        const attResult = await apiGet('getMemberAttendance', { name: currentUser.name });
+                        if (!attResult.error) {
+                            attendanceData = attResult.attendance || {};
+                            currentUser.busId = attResult.busId;
+                            currentUser.registerId = attResult.registerId;
+                        }
+                        const zusagenResult = await apiGet('getZusagen');
+                        zusagenData = zusagenResult.zusagen || {};
+                    } catch (e) { console.log('Gericht attendance error:', e); }
+                    
+                    renderGerichtView();
+                }
+            } catch (e) {
+                console.error('Background load error:', e);
+            }
+        }
+        
+        function renderBrettPostsFromCache() {
+            // Zeige cached Brett-Posts sofort an
+            if (brettPostsData.length > 0) {
+                renderBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+            }
+        }
+        
         function applyAppSettings() {
             const permissions = currentUser ? currentUser.permissions || {} : {};
             
-            // Scanner Tab anzeigen/verstecken
+            // Scanner Tab anzeigen/verstecken (für Mitglieder)
             const scannerNav = document.getElementById('nav-scanner');
             if (scannerNav) {
                 if (appSettings.qrScannerEnabled) {
                     scannerNav.classList.remove('hidden');
                 } else {
                     scannerNav.classList.add('hidden');
+                }
+            }
+            
+            // QR-Codes Tab anzeigen/verstecken (für Gericht/Admin)
+            const qrCodesNav = document.getElementById('nav-qr-codes');
+            if (qrCodesNav) {
+                if (appSettings.qrScannerEnabled) {
+                    qrCodesNav.classList.remove('hidden');
+                } else {
+                    qrCodesNav.classList.add('hidden');
                 }
             }
             
@@ -1294,6 +1446,9 @@
                 const isAbsent = status === false;
                 const hasZugesagt = zusagenData[event.id] && zusagenData[event.id][currentUser.name];
                 
+                // Zähle Zusagen für diesen Event
+                const zusagenCount = zusagenData[event.id] ? Object.keys(zusagenData[event.id]).filter(k => zusagenData[event.id][k]).length : 0;
+                
                 let cardClass = 'card event-card';
                 if (isAttended) cardClass += ' attended';
                 else if (isAbsent) cardClass += ' absent';
@@ -1303,6 +1458,11 @@
                 html += '<div class="date">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
                 html += '<div class="title">' + event.name + '</div>';
                 html += '<div class="location">📍 ' + (event.location || 'TBA') + '</div>';
+                
+                // Zeige Zusagen-Anzahl - klickbar um Teilnehmer zu sehen
+                if (zusagenCount > 0) {
+                    html += '<div style="margin: 0.5rem 0;"><a href="#" onclick="showEventParticipants(\'' + event.id + '\'); return false;" style="color: var(--accent-blue); text-decoration: none;">👥 ' + zusagenCount + ' haben zugesagt</a></div>';
+                }
                 
                 if (isAttended) html += '<span class="status present">✓ Teilgenommen</span>';
                 if (isAbsent) html += '<span class="status absent">✗ Nicht dabei</span>';
@@ -1347,6 +1507,256 @@
             document.getElementById('my-attended').textContent = attended;
             document.getElementById('my-missed').textContent = absent;
             document.getElementById('my-rate').textContent = rate + '%';
+        }
+        
+        // "Meine Auftritte" für Admin/Chef - gleiche Funktionalität wie für Mitglieder
+        function renderMyEventsForGericht() {
+            const container = document.getElementById('my-events-list');
+            if (!container) return;
+            
+            let html = '';
+            let currentWeek = '';
+            
+            eventsData.forEach(event => {
+                if (event.week !== currentWeek) {
+                    currentWeek = event.week;
+                    html += '<div class="week-header">' + currentWeek + '</div>';
+                }
+                
+                const status = attendanceData[event.id];
+                const isAttended = status === true;
+                const isAbsent = status === false;
+                const hasZugesagt = zusagenData[event.id] && zusagenData[event.id][currentUser.name];
+                
+                let cardClass = 'card event-card';
+                if (isAttended) cardClass += ' attended';
+                else if (isAbsent) cardClass += ' absent';
+                else if (hasZugesagt) cardClass += ' planned';
+                
+                html += '<div class="' + cardClass + '">';
+                html += '<div class="date">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
+                html += '<div class="title">' + event.name + '</div>';
+                html += '<div class="location">📍 ' + (event.location || 'TBA') + '</div>';
+                
+                if (isAttended) html += '<span class="status present">✓ Teilgenommen</span>';
+                if (isAbsent) html += '<span class="status absent">✗ Nicht dabei</span>';
+                if (hasZugesagt && !isAttended && !isAbsent) html += '<span class="status planned">✓ Zugesagt</span>';
+                
+                html += '<div class="actions">';
+                if (!isAttended && !isAbsent) {
+                    // Für Admin/Chef: immer "Ich bin dabei" Button, da sie selbst einchecken können
+                    html += '<button class="btn btn-primary" onclick="directCheckInGericht(\'' + event.id + '\')">✓ Ich bin dabei</button>';
+                    html += '<button class="btn zusage-btn ' + (hasZugesagt ? 'active' : '') + '" onclick="toggleZusage(\'' + event.id + '\')">' + (hasZugesagt ? '✓ Zugesagt' : '+ Zusagen') + '</button>';
+                    html += '<button class="btn btn-danger" onclick="markAbsentEventGericht(\'' + event.id + '\')">✗ Absagen</button>';
+                } else {
+                    html += '<button class="btn btn-secondary" onclick="resetEventGericht(\'' + event.id + '\')">↩ Zurücksetzen</button>';
+                }
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html || '<div class="empty-state">Keine Auftritte</div>';
+        }
+        
+        async function directCheckInGericht(eventId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: currentUser.busId || '' });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    attendanceData[eventId] = true;
+                    showToast('✓ Eingecheckt!');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function markAbsentEventGericht(eventId) {
+            const comment = prompt('Grund für Abwesenheit (optional):');
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment || '' });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    attendanceData[eventId] = false;
+                    showToast('Abwesenheit vermerkt');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function resetEventGericht(eventId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'resetAttendance', name: currentUser.name, eventId: eventId });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    delete attendanceData[eventId];
+                    showToast('Status zurückgesetzt');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // WER IST DABEI? (Teilnehmer-Modal für alle Mitglieder)
+        // ============================================================
+        async function showEventParticipants(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            document.getElementById('participants-modal-title').textContent = event.name + ' - Wer ist dabei?';
+            document.getElementById('participants-loading').classList.remove('hidden');
+            document.getElementById('participants-content').classList.add('hidden');
+            document.getElementById('participants-modal').classList.add('active');
+            
+            try {
+                // Lade Zusagen für dieses Event (aus lokalem Cache oder API)
+                let zusagen = zusagenData[eventId] || {};
+                
+                // Parallel laden: Attendance, Members, Register
+                const [attendanceResult, membersResult, registerResult] = await Promise.all([
+                    apiGet('getEventAttendance', { eventId: eventId }).catch(e => ({ attendance: {} })),
+                    allMembersData.length === 0 ? apiGet('getMembers').catch(e => ({ members: [] })) : Promise.resolve({ members: allMembersData }),
+                    registerData.length === 0 ? apiGet('getRegister').catch(e => ({ register: [] })) : Promise.resolve({ register: registerData })
+                ]);
+                
+                const eventAttendance = attendanceResult.attendance || {};
+                
+                // Aktualisiere globale Daten
+                if (membersResult.members && membersResult.members.length > 0) {
+                    allMembersData = membersResult.members;
+                }
+                if (registerResult.register && registerResult.register.length > 0) {
+                    registerData = registerResult.register;
+                }
+                
+                renderParticipantsModal(event, zusagen, eventAttendance);
+                
+            } catch (e) {
+                console.error('Participants error:', e);
+                showToast('Fehler beim Laden', true);
+            }
+            
+            document.getElementById('participants-loading').classList.add('hidden');
+            document.getElementById('participants-content').classList.remove('hidden');
+        }
+        
+        function renderParticipantsModal(event, zusagen, eventAttendance) {
+            // Kategorisieren
+            const zugesagt = [];
+            const anwesend = [];
+            const abgesagt = [];
+            
+            // Prüfe ob User alle sehen darf oder nur eigenes Register
+            const permissions = currentUser.permissions || {};
+            const canViewAll = permissions.isAdmin || permissions.canViewAllMembers || permissions.canViewAllAttendance;
+            const userRegisterId = currentUser.registerId;
+            
+            // Aus Zusagen
+            for (const name in zusagen) {
+                if (zusagen[name]) {
+                    // Filter nach Register wenn nötig
+                    if (!canViewAll) {
+                        const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                        if (member && member.registerId !== userRegisterId) continue;
+                    }
+                    zugesagt.push(name);
+                }
+            }
+            
+            // Aus Attendance (überschreibt Zusagen)
+            for (const name in eventAttendance) {
+                // Filter nach Register wenn nötig
+                if (!canViewAll) {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    if (member && member.registerId !== userRegisterId) continue;
+                }
+                
+                if (eventAttendance[name] === true) {
+                    anwesend.push(name);
+                    // Entferne aus zugesagt wenn anwesend
+                    const idx = zugesagt.indexOf(name);
+                    if (idx > -1) zugesagt.splice(idx, 1);
+                } else if (eventAttendance[name] === false) {
+                    abgesagt.push(name);
+                    const idx = zugesagt.indexOf(name);
+                    if (idx > -1) zugesagt.splice(idx, 1);
+                }
+            }
+            
+            // Header mit Register-Info wenn gefiltert
+            const registerName = userRegisterId ? (registerData.find(r => r.id === userRegisterId)?.name || '') : '';
+            const filterInfo = !canViewAll && registerName ? ' <small style="color: var(--text-secondary);">(' + registerName + ')</small>' : '';
+            
+            // Stats
+            document.getElementById('participants-stats').innerHTML = 
+                '<span style="color: var(--accent-green);">✓ ' + anwesend.length + ' dabei</span>' +
+                '<span style="color: var(--accent-blue);">📅 ' + zugesagt.length + ' zugesagt</span>' +
+                '<span style="color: var(--accent-red);">✗ ' + abgesagt.length + ' abgesagt</span>' +
+                filterInfo;
+            
+            // Register-Gruppierung nur für Admins anzeigen
+            const byRegisterDiv = document.getElementById('participants-by-register');
+            if (canViewAll) {
+                // Nach Register gruppieren
+                const byRegister = {};
+                registerData.forEach(r => { byRegister[r.id] = { name: r.name, members: [] }; });
+                byRegister['none'] = { name: 'Ohne Register', members: [] };
+                
+                [...anwesend, ...zugesagt].forEach(name => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    const regId = member?.registerId || 'none';
+                    if (byRegister[regId]) {
+                        const status = anwesend.includes(name) ? 'anwesend' : 'zugesagt';
+                        byRegister[regId].members.push({ name, status });
+                    }
+                });
+                
+                let regHtml = '';
+                Object.values(byRegister).filter(r => r.members.length > 0).forEach(r => {
+                    regHtml += '<div style="background: var(--bg-input); padding: 0.5rem; border-radius: 8px; margin-bottom: 0.5rem;">';
+                    regHtml += '<strong>' + r.name + '</strong>: ' + r.members.length + ' Personen';
+                    regHtml += '</div>';
+                });
+                byRegisterDiv.innerHTML = regHtml || '<p style="color: var(--text-secondary);">Keine Daten</p>';
+                byRegisterDiv.parentElement.style.display = 'block';
+            } else {
+                // Verstecke Register-Gruppierung für normale Mitglieder
+                byRegisterDiv.parentElement.style.display = 'none';
+            }
+            
+            // Teilnehmerliste
+            let listHtml = '';
+            
+            anwesend.forEach(name => {
+                listHtml += '<div class="member-attendance-row anwesend">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-green);">✓ dabei</div>';
+                listHtml += '</div>';
+            });
+            
+            zugesagt.forEach(name => {
+                listHtml += '<div class="member-attendance-row" style="border-left: 3px solid var(--accent-blue);">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-blue);">📅 zugesagt</div>';
+                listHtml += '</div>';
+            });
+            
+            abgesagt.forEach(name => {
+                listHtml += '<div class="member-attendance-row abwesend">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-red);">✗ abgesagt</div>';
+                listHtml += '</div>';
+            });
+            
+            document.getElementById('participants-list').innerHTML = listHtml || '<p style="color: var(--text-secondary);">Noch keine Anmeldungen</p>';
+        }
+        
+        function closeParticipantsModal() {
+            document.getElementById('participants-modal').classList.remove('active');
         }
         
         // ============================================================
@@ -1735,6 +2145,7 @@
             renderBusseList();
             renderRegisterList();
             renderEventsManageList();
+            renderMyEventsForGericht(); // NEU: Eigene Auftritte für Admin/Chef
             
             // Settings Checkboxen initialisieren
             applyAppSettings();
@@ -2400,18 +2811,36 @@
             const inhalt = document.getElementById('post-inhalt').value.trim();
             if (!titel || !inhalt) { showToast('Titel und Inhalt erforderlich', true); return; }
             
-            showLoading();
+            // Optimistisches Update - sofort anzeigen
+            const tempPost = {
+                id: 'temp-' + Date.now(),
+                autor: currentUser.name,
+                titel: titel,
+                inhalt: inhalt,
+                erstelltAm: new Date().toISOString(),
+                bereichId: currentForumBereichId
+            };
+            brettPostsData.unshift(tempPost);
+            renderBrettPosts('member');
+            document.getElementById('post-titel').value = '';
+            document.getElementById('post-inhalt').value = '';
+            showToast('Beitrag veröffentlicht!');
+            
+            // Im Hintergrund speichern
             try {
                 const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
-                if (result.error) { showToast(result.error, true); }
-                else {
-                    showToast('Beitrag veröffentlicht!');
-                    document.getElementById('post-titel').value = '';
-                    document.getElementById('post-inhalt').value = '';
-                    await loadBrettPosts('member');
+                if (result.error) { 
+                    showToast(result.error, true);
+                    // Entferne temp Post bei Fehler
+                    brettPostsData = brettPostsData.filter(p => p.id !== tempPost.id);
+                    renderBrettPosts('member');
+                } else {
+                    // Lade frische Daten im Hintergrund
+                    loadBrettPosts('member');
                 }
-            } catch (e) { showToast('Fehler: ' + e.message, true); }
-            hideLoading();
+            } catch (e) { 
+                showToast('Fehler beim Speichern', true);
+            }
         }
         
         async function submitBrettPostGericht() {
@@ -2419,18 +2848,34 @@
             const inhalt = document.getElementById('post-inhalt-gericht').value.trim();
             if (!titel || !inhalt) { showToast('Titel und Inhalt erforderlich', true); return; }
             
-            showLoading();
+            // Optimistisches Update
+            const tempPost = {
+                id: 'temp-' + Date.now(),
+                autor: currentUser.name,
+                titel: titel,
+                inhalt: inhalt,
+                erstelltAm: new Date().toISOString(),
+                bereichId: currentForumBereichId
+            };
+            brettPostsData.unshift(tempPost);
+            renderBrettPosts('gericht');
+            document.getElementById('post-titel-gericht').value = '';
+            document.getElementById('post-inhalt-gericht').value = '';
+            showToast('Beitrag veröffentlicht!');
+            
+            // Im Hintergrund speichern
             try {
                 const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
-                if (result.error) { showToast(result.error, true); }
-                else {
-                    showToast('Beitrag veröffentlicht!');
-                    document.getElementById('post-titel-gericht').value = '';
-                    document.getElementById('post-inhalt-gericht').value = '';
-                    await loadBrettPosts('gericht');
+                if (result.error) { 
+                    showToast(result.error, true);
+                    brettPostsData = brettPostsData.filter(p => p.id !== tempPost.id);
+                    renderBrettPosts('gericht');
+                } else {
+                    loadBrettPosts('gericht');
                 }
-            } catch (e) { showToast('Fehler: ' + e.message, true); }
-            hideLoading();
+            } catch (e) { 
+                showToast('Fehler beim Speichern', true);
+            }
         }
         
         async function deletePost(postId) {
@@ -3009,13 +3454,11 @@
             if (!memberContainer && !adminContainer) return;
             
             const permissions = currentUser.permissions || {};
-            const userRegisterId = currentUser.registerId;
             
             let html = '';
             forumBereicheData.forEach(bereich => {
-                // Filtern basierend auf Berechtigungen
+                // Nur Admin-Bereich filtern - alle anderen Bereiche für alle sichtbar
                 if (bereich.typ === 'admin' && !permissions.isAdmin) return;
-                if (bereich.typ === 'register' && bereich.registerId && bereich.registerId !== userRegisterId && !permissions.canViewAllMembers) return;
                 
                 const isActive = bereich.id === currentForumBereichId ? 'active' : '';
                 const isRegister = bereich.typ === 'register' ? 'register-tab' : '';
@@ -3136,7 +3579,17 @@
             try {
                 for (const event of weekEvents) {
                     const result = await apiGet('getEventAttendance', { eventId: event.id });
-                    weekendAttendanceData[event.id] = result.attendance || [];
+                    // Konvertiere Objekt {name: boolean} zu Array [{name, status, comment}]
+                    const attObj = result.attendance || {};
+                    const attArray = [];
+                    for (const name in attObj) {
+                        attArray.push({
+                            name: name,
+                            status: attObj[name] ? 'anwesend' : 'abwesend',
+                            comment: ''
+                        });
+                    }
+                    weekendAttendanceData[event.id] = attArray;
                 }
             } catch (e) {
                 console.log('Weekend attendance error:', e);
@@ -3153,15 +3606,17 @@
             let totalPresent = 0, totalAbsent = 0, totalUnknown = 0;
             weekEvents.forEach(event => {
                 const att = weekendAttendanceData[event.id] || [];
-                att.forEach(a => {
-                    if (a.status === 'anwesend') totalPresent++;
-                    else if (a.status === 'abwesend') totalAbsent++;
-                });
-                // Unbekannt = Mitglieder ohne Eintrag
-                const knownNames = att.map(a => a.name.toLowerCase());
-                allMembersData.forEach(m => {
-                    if (!knownNames.includes(m.name.toLowerCase())) totalUnknown++;
-                });
+                if (Array.isArray(att)) {
+                    att.forEach(a => {
+                        if (a.status === 'anwesend') totalPresent++;
+                        else if (a.status === 'abwesend') totalAbsent++;
+                    });
+                    // Unbekannt = Mitglieder ohne Eintrag
+                    const knownNames = att.map(a => a.name.toLowerCase());
+                    allMembersData.forEach(m => {
+                        if (!knownNames.includes(m.name.toLowerCase())) totalUnknown++;
+                    });
+                }
             });
             
             let html = '';
