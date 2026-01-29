@@ -1266,25 +1266,15 @@
                 document.getElementById('config-btn').textContent = '🔄'; // Auch für Admin: Aktualisierung
                 
                 // Tabs basierend auf Berechtigungen ein/ausblenden
-                if (!permissions.canManageAnzeigen) {
-                    const anzeigenTab = document.querySelector('[data-tab="anzeigen"]');
-                    if (anzeigenTab) anzeigenTab.classList.add('hidden');
-                }
+                updateUIPermissions(permissions);
                 
                 initGerichtNav();
             } else {
                 document.getElementById('config-btn').textContent = '🔄';
                 userInfo.textContent = '👤 ' + currentUser.name;
                 
-                // Register-Zusagen Button ein/ausblenden
-                const allRegZusagenSection = document.getElementById('all-register-zusagen-section');
-                if (allRegZusagenSection) {
-                    if (permissions.canViewAllRegisterZusagen || permissions.isAdmin) {
-                        allRegZusagenSection.classList.remove('hidden');
-                    } else {
-                        allRegZusagenSection.classList.add('hidden');
-                    }
-                }
+                // Berechtigungen auf UI anwenden
+                updateUIPermissions(permissions);
                 
                 initMemberNav();
                 eventsData = getOfflineEvents();
@@ -1318,6 +1308,63 @@
                     }
                 });
             });
+        }
+        
+        // Aktualisiere UI basierend auf Berechtigungen
+        function updateUIPermissions(permissions) {
+            if (!permissions) permissions = currentUser?.permissions || {};
+            
+            // === GERICHT TABS ===
+            // Anzeigen-Tab
+            const anzeigenTab = document.querySelector('#gericht-nav [data-tab="anzeigen"]');
+            if (anzeigenTab) {
+                if (permissions.canManageAnzeigen || permissions.isAdmin) {
+                    anzeigenTab.classList.remove('hidden');
+                } else {
+                    anzeigenTab.classList.add('hidden');
+                }
+            }
+            
+            // Settings-Tab (nur für Admins oder Rollen-Verwalter)
+            const settingsTab = document.querySelector('#gericht-nav [data-tab="settings"]');
+            if (settingsTab) {
+                if (permissions.isAdmin || permissions.canManageRoles || permissions.canManageMembers) {
+                    settingsTab.classList.remove('hidden');
+                } else {
+                    settingsTab.classList.add('hidden');
+                }
+            }
+            
+            // === MEMBER BEREICH ===
+            // Register-Zusagen Button
+            const allRegZusagenSection = document.getElementById('all-register-zusagen-section');
+            if (allRegZusagenSection) {
+                if (permissions.canViewAllRegisterZusagen || permissions.isAdmin) {
+                    allRegZusagenSection.classList.remove('hidden');
+                } else {
+                    allRegZusagenSection.classList.add('hidden');
+                }
+            }
+            
+            // Scanner-Tab (wenn QR-Scanner aktiviert ist)
+            const scannerTab = document.querySelector('#member-nav [data-tab="scanner"]');
+            if (scannerTab && typeof appSettings !== 'undefined') {
+                if (appSettings.qrScannerEnabled) {
+                    scannerTab.classList.remove('hidden');
+                } else {
+                    scannerTab.classList.add('hidden');
+                }
+            }
+            
+            // Anzeige-Tab für Member
+            const memberAnzeigeTab = document.querySelector('#member-nav [data-tab="anzeige"]');
+            if (memberAnzeigeTab && typeof appSettings !== 'undefined') {
+                if (appSettings.strafenEnabled) {
+                    memberAnzeigeTab.classList.remove('hidden');
+                } else {
+                    memberAnzeigeTab.classList.add('hidden');
+                }
+            }
         }
         
         function initGerichtNav() {
@@ -1411,6 +1458,14 @@
                     commentsData = attResult.comments || {};
                     currentUser.busId = attResult.busId;
                     currentUser.registerId = attResult.registerId;
+                    
+                    // Berechtigungen aktualisieren (falls vom Server gesendet)
+                    if (attResult.permissions) {
+                        currentUser.permissions = attResult.permissions;
+                        // UI basierend auf neuen Berechtigungen aktualisieren
+                        updateUIPermissions(currentUser.permissions);
+                    }
+                    
                     localStorage.setItem('lkt-user', JSON.stringify(currentUser));
                     if (currentUser.role === 'member') saveLocalAttendance();
                 }
