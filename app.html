@@ -179,9 +179,10 @@
         .bereich-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
         .bereich-item .bereich-typ { font-size: 0.75rem; color: var(--text-secondary); }
         .forum-tabs { display: flex; overflow-x: auto; gap: 0.5rem; padding: 0.5rem 0; margin-bottom: 1rem; }
-        .forum-tab { padding: 0.5rem 1rem; border-radius: 20px; background: var(--bg-card); border: none; color: var(--text-primary); cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
+        .forum-tab { position: relative; padding: 0.5rem 1rem; border-radius: 20px; background: var(--bg-card); border: none; color: var(--text-primary); cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
         .forum-tab.active { background: var(--accent-blue); color: white; }
         .forum-tab.register-tab { border-left: 3px solid var(--accent-purple); }
+        .forum-tab .bereich-badge { position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
         .weekend-event-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; border-left: 4px solid var(--accent-blue); transition: transform 0.2s; }
         .weekend-event-card:hover { transform: translateX(5px); }
         .weekend-event-card .event-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
@@ -271,7 +272,7 @@
         <!-- Member Navigation -->
         <nav class="nav-tabs" id="member-nav">
             <button class="nav-tab active" data-tab="events">📅 Auftritte</button>
-            <button class="nav-tab" data-tab="brett">📋 Brett</button>
+            <button class="nav-tab" data-tab="brett">📋 Brett <span class="badge hidden" id="brett-badge-member">0</span></button>
             <button class="nav-tab" data-tab="register-view">🎵 Register</button>
             <button class="nav-tab hidden" data-tab="scanner" id="nav-scanner">📷 Scannen</button>
             <button class="nav-tab" data-tab="profile">👤 Profil</button>
@@ -285,7 +286,7 @@
             <button class="nav-tab" data-tab="my-events">📅 Meine Auftritte</button>
             <button class="nav-tab" data-tab="attendance">✅ Anwesenheit</button>
             <button class="nav-tab" data-tab="qr-codes" id="nav-qr-codes">📱 QR-Codes</button>
-            <button class="nav-tab" data-tab="brett-gericht">📋 Brett</button>
+            <button class="nav-tab" data-tab="brett-gericht">📋 Brett <span class="badge hidden" id="brett-badge-gericht">0</span></button>
             <button class="nav-tab" data-tab="members">👥 Mitglieder</button>
             <button class="nav-tab" data-tab="anzeigen">⚖️ Anzeigen</button>
             <button class="nav-tab" data-tab="rankings">🏆 Ranglisten</button>
@@ -297,10 +298,6 @@
             <!-- Events Tab -->
             <div id="events-tab" class="screen active">
                 <div class="section-header"><h2>Deine Auftritte</h2></div>
-                <!-- Register-Zusagen Übersicht (nur für berechtigte User) -->
-                <div id="all-register-zusagen-section" class="hidden" style="margin-bottom: 1rem;">
-                    <button class="btn btn-secondary btn-block" onclick="showAllRegisterZusagenModal()">📊 Alle Register-Zusagen der Woche</button>
-                </div>
                 <div id="events-list"></div>
             </div>
             
@@ -347,6 +344,13 @@
                         <p id="register-zusagen-count">0 / 0 haben zugesagt</p>
                     </div>
                     <div id="register-members-list"></div>
+                </div>
+                
+                <!-- Alle Register-Zusagen (nur für berechtigte User) -->
+                <div id="all-register-zusagen-section" class="card hidden" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-purple); margin-bottom: 0.75rem;">📊 Alle Register-Zusagen</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Übersicht aller Register für die Woche (ohne Namen)</p>
+                    <button class="btn btn-primary btn-block" onclick="showAllRegisterZusagenModal()">📊 Übersicht öffnen</button>
                 </div>
             </div>
             
@@ -490,6 +494,15 @@
                         <div class="label">Bus-Quote</div>
                         <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);" id="my-bus-detail">- dabei / - gesamt</div>
                     </div>
+                </div>
+                
+                <!-- Komplette Bus/Register-Statistik (nur für berechtigte User) -->
+                <div id="full-stats-section" class="hidden">
+                    <div class="section-header" style="margin-top: 1.5rem;"><h2>🚌 Alle Busse</h2></div>
+                    <div id="member-bus-stats-list"></div>
+                    
+                    <div class="section-header" style="margin-top: 1.5rem;"><h2>🎵 Alle Register</h2></div>
+                    <div id="member-register-stats-list"></div>
                 </div>
                 
                 <button class="btn btn-secondary btn-block" style="margin-top: 1.5rem;" onclick="loadMemberGroupStats()">🔄 Statistik aktualisieren</button>
@@ -777,6 +790,7 @@
                     <div class="setting-item"><label class="toggle-label"><span>Alle Anwesenheiten sehen</span><input type="checkbox" id="perm-viewAllAttendance"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Eigenes Register sehen</span><input type="checkbox" id="perm-viewOwnRegister"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>📊 Alle Register-Zusagen sehen</span><input type="checkbox" id="perm-viewAllRegisterZusagen"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>📈 Bus/Register-Statistik sehen</span><input type="checkbox" id="perm-viewStats"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Events verwalten</span><input type="checkbox" id="perm-manageEvents"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Mitglieder verwalten</span><input type="checkbox" id="perm-manageMembers"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Rollen verwalten</span><input type="checkbox" id="perm-manageRoles"><span class="toggle-slider"></span></label></div>
@@ -1365,6 +1379,16 @@
                     memberAnzeigeTab.classList.add('hidden');
                 }
             }
+            
+            // Komplette Stats für berechtigte User
+            const fullStatsSection = document.getElementById('full-stats-section');
+            if (fullStatsSection) {
+                if (permissions.canViewStats || permissions.isAdmin) {
+                    fullStatsSection.classList.remove('hidden');
+                } else {
+                    fullStatsSection.classList.add('hidden');
+                }
+            }
         }
         
         function initGerichtNav() {
@@ -1834,13 +1858,17 @@
             const registerRateEl = document.getElementById('my-register-rate');
             const registerDetailEl = document.getElementById('my-register-detail');
             
+            let allRegisterStats = [];
+            let allBusStats = [];
+            
             if (currentUser.registerId) {
                 const register = registerData.find(r => r.id === currentUser.registerId);
                 registerNameEl.textContent = register ? '🎵 ' + register.name : 'Mein Register';
                 
                 try {
                     const result = await apiGet('getRegisterStats');
-                    const regStats = (result.registerStats || []).find(r => r.id === currentUser.registerId);
+                    allRegisterStats = result.registerStats || [];
+                    const regStats = allRegisterStats.find(r => r.id === currentUser.registerId);
                     if (regStats) {
                         const total = regStats.attended + regStats.absent;
                         const rate = total > 0 ? Math.round(regStats.attended / total * 100) : 0;
@@ -1871,7 +1899,8 @@
                 
                 try {
                     const result = await apiGet('getBusStats');
-                    const busStats = (result.busStats || []).find(b => b.id === currentUser.busId);
+                    allBusStats = result.busStats || [];
+                    const busStats = allBusStats.find(b => b.id === currentUser.busId);
                     if (busStats) {
                         const total = busStats.attended + busStats.absent;
                         const rate = total > 0 ? Math.round(busStats.attended / total * 100) : 0;
@@ -1890,6 +1919,71 @@
                 busRateEl.textContent = '-';
                 busDetailEl.textContent = 'Du fährst flexibel mit';
             }
+            
+            // Wenn User Berechtigung hat: Komplette Listen rendern
+            const permissions = currentUser.permissions || {};
+            if (permissions.canViewStats || permissions.isAdmin) {
+                renderMemberBusStatsList(allBusStats);
+                renderMemberRegisterStatsList(allRegisterStats);
+            }
+        }
+        
+        // Rendere Bus-Statistik Liste für Member
+        function renderMemberBusStatsList(busStats) {
+            const container = document.getElementById('member-bus-stats-list');
+            if (!container) return;
+            
+            if (!busStats || busStats.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Bus-Statistik verfügbar</div>';
+                return;
+            }
+            
+            let html = '';
+            busStats.forEach(bus => {
+                const total = bus.attended + bus.absent;
+                const rate = total > 0 ? Math.round(bus.attended / total * 100) : 0;
+                const color = rate >= 80 ? 'var(--accent-green)' : rate >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                
+                html += '<div class="card" style="margin-bottom: 0.75rem;">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div>';
+                html += '<strong>🚌 ' + bus.name + '</strong> <span style="color: var(--text-secondary); font-size: 0.85rem;">(' + (bus.memberCount || 0) + ' Mitglieder)</span>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + bus.attended + ' | ✗ ' + bus.absent + '</div>';
+                html += '</div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: ' + color + ';">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Rendere Register-Statistik Liste für Member
+        function renderMemberRegisterStatsList(registerStats) {
+            const container = document.getElementById('member-register-stats-list');
+            if (!container) return;
+            
+            if (!registerStats || registerStats.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Register-Statistik verfügbar</div>';
+                return;
+            }
+            
+            let html = '';
+            registerStats.forEach(reg => {
+                const total = reg.attended + reg.absent;
+                const rate = total > 0 ? Math.round(reg.attended / total * 100) : 0;
+                const color = rate >= 80 ? 'var(--accent-green)' : rate >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                
+                html += '<div class="card" style="margin-bottom: 0.75rem;">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div>';
+                html += '<strong>🎵 ' + reg.name + '</strong> <span style="color: var(--text-secondary); font-size: 0.85rem;">(' + (reg.memberCount || 0) + ' Mitglieder)</span>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + reg.attended + ' | ✗ ' + reg.absent + '</div>';
+                html += '</div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: ' + color + ';">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html;
         }
         
         // "Meine Auftritte" für Admin/Chef - gleiche Funktionalität wie für Mitglieder
@@ -3654,7 +3748,70 @@
                 saveToCache('kommentare', kommentareData);
                 
                 renderBrettPosts(view);
+                updateUnreadBadges();
             } catch (e) { console.error('Brett load error:', e); }
+        }
+        
+        // Ungelesene Beiträge zählen und Badge aktualisieren
+        function updateUnreadBadges() {
+            if (!currentUser) return;
+            
+            const lastReadKey = 'lkt-brett-lastread-' + currentUser.name;
+            const lastRead = JSON.parse(localStorage.getItem(lastReadKey) || '{}');
+            
+            let totalUnread = 0;
+            
+            // Zähle ungelesene pro Bereich
+            forumBereiche.forEach(bereich => {
+                const cachedPosts = getFromCache('brett_' + bereich.id) || [];
+                const bereichLastRead = lastRead[bereich.id] || 0;
+                
+                const unreadCount = cachedPosts.filter(post => {
+                    const postTime = new Date(post.erstelltAm).getTime();
+                    return postTime > bereichLastRead;
+                }).length;
+                
+                // Badge am Bereich-Button aktualisieren
+                const bereichBtn = document.querySelector('.forum-bereich-btn[data-bereich-id="' + bereich.id + '"] .bereich-badge');
+                if (bereichBtn) {
+                    if (unreadCount > 0) {
+                        bereichBtn.textContent = unreadCount;
+                        bereichBtn.classList.remove('hidden');
+                    } else {
+                        bereichBtn.classList.add('hidden');
+                    }
+                }
+                
+                totalUnread += unreadCount;
+            });
+            
+            // Badge am Tab aktualisieren
+            const memberBadge = document.getElementById('brett-badge-member');
+            const gerichtBadge = document.getElementById('brett-badge-gericht');
+            
+            [memberBadge, gerichtBadge].forEach(badge => {
+                if (badge) {
+                    if (totalUnread > 0) {
+                        badge.textContent = totalUnread;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            });
+        }
+        
+        // Bereich als gelesen markieren
+        function markBereichAsRead(bereichId) {
+            if (!currentUser) return;
+            
+            const lastReadKey = 'lkt-brett-lastread-' + currentUser.name;
+            const lastRead = JSON.parse(localStorage.getItem(lastReadKey) || '{}');
+            lastRead[bereichId] = Date.now();
+            localStorage.setItem(lastReadKey, JSON.stringify(lastRead));
+            
+            // Badge aktualisieren
+            setTimeout(updateUnreadBadges, 100);
         }
         
         function renderBrettPosts(view) {
@@ -4477,6 +4634,7 @@
             document.getElementById('perm-viewAllAttendance').checked = false;
             document.getElementById('perm-viewOwnRegister').checked = true;
             document.getElementById('perm-viewAllRegisterZusagen').checked = false;
+            document.getElementById('perm-viewStats').checked = false;
             document.getElementById('perm-manageEvents').checked = false;
             document.getElementById('perm-manageMembers').checked = false;
             document.getElementById('perm-manageRoles').checked = false;
@@ -4498,6 +4656,7 @@
             document.getElementById('perm-viewAllAttendance').checked = rolle.canViewAllAttendance;
             document.getElementById('perm-viewOwnRegister').checked = rolle.canViewOwnRegister;
             document.getElementById('perm-viewAllRegisterZusagen').checked = rolle.canViewAllRegisterZusagen || false;
+            document.getElementById('perm-viewStats').checked = rolle.canViewStats || false;
             document.getElementById('perm-manageEvents').checked = rolle.canManageEvents;
             document.getElementById('perm-manageMembers').checked = rolle.canManageMembers;
             document.getElementById('perm-manageRoles').checked = rolle.canManageRoles;
@@ -4523,6 +4682,7 @@
                 canViewAllAttendance: document.getElementById('perm-viewAllAttendance').checked,
                 canViewOwnRegister: document.getElementById('perm-viewOwnRegister').checked,
                 canViewAllRegisterZusagen: document.getElementById('perm-viewAllRegisterZusagen').checked,
+                canViewStats: document.getElementById('perm-viewStats').checked,
                 canManageEvents: document.getElementById('perm-manageEvents').checked,
                 canManageMembers: document.getElementById('perm-manageMembers').checked,
                 canManageRoles: document.getElementById('perm-manageRoles').checked,
@@ -4611,15 +4771,35 @@
         // FORUM-BEREICHE
         // ============================================================
         let forumBereicheData = [];
+        let forumBereiche = []; // Alias für updateUnreadBadges
         let currentForumBereichId = 'FORUM-ALLGEMEIN';
         
         async function loadForumBereiche() {
             try {
                 const result = await apiGet('getForumBereiche');
                 forumBereicheData = result.bereiche || [];
+                forumBereiche = forumBereicheData; // Für updateUnreadBadges
                 renderForumBereicheList();
                 renderForumTabs();
+                
+                // Lade Posts aller Bereiche für Badges (im Hintergrund)
+                loadAllForumPostsForBadges();
             } catch (e) { console.log('Forum-Bereiche laden Fehler:', e); }
+        }
+        
+        // Lade Posts aller Bereiche für Badge-Berechnung
+        async function loadAllForumPostsForBadges() {
+            if (!forumBereicheData || forumBereicheData.length === 0) return;
+            
+            for (const bereich of forumBereicheData) {
+                try {
+                    const result = await apiGet('getBrettPosts', { bereichId: bereich.id });
+                    const posts = result.posts || [];
+                    saveToCache('brett_' + bereich.id, posts);
+                } catch (e) { /* ignore */ }
+            }
+            
+            updateUnreadBadges();
         }
         
         function renderForumBereicheList() {
@@ -4665,17 +4845,26 @@
                 
                 const isActive = bereich.id === currentForumBereichId ? 'active' : '';
                 const isRegister = bereich.typ === 'register' ? 'register-tab' : '';
-                html += '<button class="forum-tab ' + isActive + ' ' + isRegister + '" onclick="selectForumBereich(\'' + bereich.id + '\')">' + bereich.name + '</button>';
+                html += '<button class="forum-tab forum-bereich-btn ' + isActive + ' ' + isRegister + '" data-bereich-id="' + bereich.id + '" onclick="selectForumBereich(\'' + bereich.id + '\')">';
+                html += '<span class="bereich-badge hidden" style="position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">0</span>';
+                html += bereich.name;
+                html += '</button>';
             });
             
             if (memberContainer) memberContainer.innerHTML = html;
             if (adminContainer) adminContainer.innerHTML = html;
+            
+            // Badges aktualisieren
+            updateUnreadBadges();
         }
         
         function selectForumBereich(bereichId) {
             currentForumBereichId = bereichId;
             renderForumTabs();
             loadBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+            
+            // Als gelesen markieren
+            markBereichAsRead(bereichId);
         }
         
         async function addNewForumBereich() {
