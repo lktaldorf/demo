@@ -1797,7 +1797,15 @@
             let html = '';
             let currentWeek = '';
             
-            eventsData.forEach(event => {
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            sortedEvents.forEach(event => {
                 if (event.week !== currentWeek) {
                     currentWeek = event.week;
                     html += '<div class="week-header">' + currentWeek + '</div>';
@@ -2060,7 +2068,15 @@
             let html = '';
             let currentWeek = '';
             
-            eventsData.forEach(event => {
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            sortedEvents.forEach(event => {
                 if (event.week !== currentWeek) {
                     currentWeek = event.week;
                     html += '<div class="week-header">' + currentWeek + '</div>';
@@ -5529,8 +5545,16 @@
                 return;
             }
             
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
             let html = '';
-            eventsData.forEach(event => {
+            sortedEvents.forEach(event => {
                 html += '<div class="event-manage-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">';
                 html += '<div><strong>' + event.name + '</strong><br><span style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + ' | ' + (event.week || '') + '</span></div>';
                 html += '<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" onclick="openEventEditModal(\'' + event.id + '\')">✏️</button>';
