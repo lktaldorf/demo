@@ -4656,35 +4656,33 @@
             const pageHeight = doc.internal.pageSize.getHeight();
             
             // Farben
-            const primaryColor = [30, 41, 59];      // Dunkelblau
-            const accentColor = [234, 179, 8];      // Gold/Gelb
-            const lightGray = [248, 250, 252];
+            const primaryColor = [30, 41, 59];
+            const accentColor = [234, 179, 8];
+            const lightGray = [245, 247, 250];
             const darkGray = [71, 85, 105];
             
-            // Header-Bereich mit Hintergrund
+            // Header
             doc.setFillColor(...primaryColor);
-            doc.rect(0, 0, pageWidth, 45, 'F');
+            doc.rect(0, 0, pageWidth, 28, 'F');
             
-            // Titel
             doc.setTextColor(255, 255, 255);
-            doc.setFontSize(24);
+            doc.setFontSize(16);
             doc.setFont(undefined, 'bold');
-            doc.text('🎺 LUMPENKAPELLE TALDORF', pageWidth / 2, 18, { align: 'center' });
+            doc.text('LUMPENKAPELLE TALDORF', pageWidth / 2, 12, { align: 'center' });
             
-            doc.setFontSize(14);
-            doc.setFont(undefined, 'normal');
-            doc.text('Veranstaltungskalender Saison 2025', pageWidth / 2, 28, { align: 'center' });
-            
-            // Datum
             doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text('Veranstaltungskalender Saison 2025', pageWidth / 2, 20, { align: 'center' });
+            
+            // Stand rechts
+            doc.setFontSize(8);
             doc.setTextColor(...accentColor);
-            doc.text('Stand: ' + new Date().toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }), pageWidth / 2, 38, { align: 'center' });
+            doc.text('Stand: ' + new Date().toLocaleDateString('de-DE'), pageWidth - 14, 25, { align: 'right' });
             
-            let y = 55;
+            let y = 34;
             let currentWeek = '';
-            let eventCount = 0;
             
-            // Nach Datum sortieren
+            // Sortieren
             const sortedEvents = [...eventsData].sort((a, b) => {
                 if (!a.date || !b.date) return 0;
                 const [d1, m1, y1] = a.date.split('.');
@@ -4692,95 +4690,86 @@
                 return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
             });
             
-            // Events gruppiert nach Woche
+            // Tabellen-Header
+            doc.setFillColor(...lightGray);
+            doc.rect(10, y, pageWidth - 20, 6, 'F');
+            doc.setFontSize(7);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(...darkGray);
+            doc.text('VERANSTALTUNG', 14, y + 4);
+            doc.text('DATUM', 90, y + 4);
+            doc.text('ZEIT', 120, y + 4);
+            doc.text('ORT', 145, y + 4);
+            y += 8;
+            
             sortedEvents.forEach((event, index) => {
                 // Neue Seite wenn nötig
-                if (y > pageHeight - 30) {
+                if (y > pageHeight - 15) {
                     doc.addPage();
-                    // Mini-Header auf Folgeseiten
-                    doc.setFillColor(...primaryColor);
-                    doc.rect(0, 0, pageWidth, 15, 'F');
-                    doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(10);
-                    doc.text('Lumpenkapelle Taldorf - Veranstaltungskalender', pageWidth / 2, 10, { align: 'center' });
-                    y = 25;
+                    y = 15;
+                    // Mini-Header
+                    doc.setFillColor(...lightGray);
+                    doc.rect(10, y - 5, pageWidth - 20, 6, 'F');
+                    doc.setFontSize(7);
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(...darkGray);
+                    doc.text('VERANSTALTUNG', 14, y - 1);
+                    doc.text('DATUM', 90, y - 1);
+                    doc.text('ZEIT', 120, y - 1);
+                    doc.text('ORT', 145, y - 1);
+                    y += 3;
                 }
                 
-                // Wochenend-Header
+                // Wochenend-Header (kompakt)
                 if (event.week && event.week !== currentWeek) {
                     currentWeek = event.week;
-                    
-                    if (y > 55) y += 5; // Abstand vor neuer Woche
-                    
-                    // Wochenend-Banner
                     doc.setFillColor(...accentColor);
-                    doc.roundedRect(14, y - 5, pageWidth - 28, 10, 2, 2, 'F');
-                    
+                    doc.rect(10, y - 1, pageWidth - 20, 5, 'F');
                     doc.setTextColor(...primaryColor);
-                    doc.setFontSize(11);
+                    doc.setFontSize(8);
                     doc.setFont(undefined, 'bold');
-                    doc.text('📅 ' + currentWeek.toUpperCase(), 20, y + 2);
-                    
-                    y += 12;
+                    doc.text(currentWeek.toUpperCase(), 14, y + 2.5);
+                    y += 6;
                 }
                 
-                // Event-Karte
-                const cardHeight = 22;
-                const isEven = eventCount % 2 === 0;
-                
-                // Hintergrund (alternierend)
-                if (isEven) {
-                    doc.setFillColor(...lightGray);
-                    doc.roundedRect(14, y - 3, pageWidth - 28, cardHeight, 3, 3, 'F');
+                // Zeile (alternierend)
+                if (index % 2 === 0) {
+                    doc.setFillColor(252, 252, 253);
+                    doc.rect(10, y - 2, pageWidth - 20, 6, 'F');
                 }
                 
-                // Linker Akzent-Streifen
+                // Akzent-Linie
                 doc.setFillColor(...accentColor);
-                doc.rect(14, y - 3, 3, cardHeight, 'F');
+                doc.rect(10, y - 2, 1.5, 6, 'F');
                 
-                // Event-Name
                 doc.setTextColor(...primaryColor);
-                doc.setFontSize(12);
+                doc.setFontSize(8);
                 doc.setFont(undefined, 'bold');
-                doc.text(event.name || 'Unbenannt', 22, y + 4);
                 
-                // Details-Zeile
-                doc.setTextColor(...darkGray);
-                doc.setFontSize(9);
+                // Name (max 40 Zeichen)
+                let name = event.name || '-';
+                if (name.length > 40) name = name.substring(0, 37) + '...';
+                doc.text(name, 14, y + 2);
+                
                 doc.setFont(undefined, 'normal');
+                doc.setTextColor(...darkGray);
+                doc.text(event.date || '-', 90, y + 2);
+                doc.text(event.time || '-', 120, y + 2);
                 
-                const dateStr = event.date || '-';
-                const timeStr = event.time ? '⏰ ' + event.time : '';
-                const locationStr = event.location ? '📍 ' + event.location : '';
+                // Ort (max 30 Zeichen)
+                let ort = event.location || '-';
+                if (ort.length > 30) ort = ort.substring(0, 27) + '...';
+                doc.text(ort, 145, y + 2);
                 
-                // Datum links
-                doc.text('📆 ' + dateStr, 22, y + 12);
-                
-                // Zeit Mitte
-                if (timeStr) {
-                    doc.text(timeStr, 70, y + 12);
-                }
-                
-                // Ort rechts
-                if (locationStr) {
-                    doc.text(locationStr, 110, y + 12);
-                }
-                
-                y += cardHeight + 3;
-                eventCount++;
+                y += 6;
             });
             
-            // Footer auf jeder Seite
-            const totalPages = doc.internal.getNumberOfPages();
-            for (let i = 1; i <= totalPages; i++) {
-                doc.setPage(i);
-                doc.setFillColor(...primaryColor);
-                doc.rect(0, pageHeight - 12, pageWidth, 12, 'F');
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(8);
-                doc.text('Seite ' + i + ' von ' + totalPages, pageWidth / 2, pageHeight - 4, { align: 'center' });
-                doc.text(eventsData.length + ' Veranstaltungen', pageWidth - 20, pageHeight - 4, { align: 'right' });
-            }
+            // Footer
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(7);
+            doc.text('Seite 1 | ' + eventsData.length + ' Veranstaltungen | Lumpenkapelle Taldorf', pageWidth / 2, pageHeight - 3, { align: 'center' });
             
             doc.save('LKT-Veranstaltungen-2025.pdf');
             showToast('Events-PDF erstellt!');
