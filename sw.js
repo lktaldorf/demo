@@ -1,115 +1,6824 @@
-// LKT Tracker Service Worker für Push Notifications
-
-const CACHE_NAME = 'lkt-tracker-v10';
-
-// Dateien zum Cachen
-const CACHE_FILES = [
-    '/',
-    '/app.html',
-    '/index.html'
-];
-
-// Install Event
-self.addEventListener('install', event => {
-    console.log('Service Worker installed');
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache => {
-            return cache.addAll(CACHE_FILES).catch(e => console.log('Cache error:', e));
-        })
-    );
-    self.skipWaiting();
-});
-
-// Activate Event
-self.addEventListener('activate', event => {
-    console.log('Service Worker activated');
-    event.waitUntil(clients.claim());
-});
-
-// Push Event - Benachrichtigung empfangen
-self.addEventListener('push', event => {
-    console.log('Push received:', event);
-    
-    let data = {
-        title: '🎺 LKT Tracker',
-        body: 'Neue Benachrichtigung',
-        icon: 'icon-192.png',
-        badge: 'icon-192.png',
-        tag: 'lkt-notification',
-        url: '/'
-    };
-    
-    if (event.data) {
-        try {
-            const payload = event.data.json();
-            data = { ...data, ...payload };
-        } catch (e) {
-            data.body = event.data.text();
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>LKT Tracker 2026</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --accent-yellow: #f5c518;
+            --accent-gold: #ffd700;
+            --accent-green: #4ade80;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --border-color: #334155;
         }
-    }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Open Sans', sans-serif; background: var(--bg-dark); color: var(--text-primary); min-height: 100vh; overflow-x: hidden; }
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: var(--bg-dark); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; }
+        .loading-overlay.hidden { display: none; }
+        .spinner { width: 50px; height: 50px; border: 4px solid var(--border-color); border-top-color: var(--accent-yellow); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { margin-top: 1rem; color: var(--text-secondary); }
+        .header { background: linear-gradient(135deg, var(--bg-card) 0%, #0f0f23 100%); padding: 1rem; text-align: center; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid var(--accent-yellow); }
+        .header h1 { font-family: 'Bangers', cursive; font-size: 1.6rem; color: var(--accent-yellow); letter-spacing: 2px; }
+        .header .user-info { display: inline-block; background: var(--accent-yellow); color: var(--bg-dark); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 700; margin-top: 0.5rem; }
+        .header .user-info.gericht { background: var(--accent-gold); }
+        .header .user-info.chef { background: var(--accent-blue); }
+        .nav-tabs { display: flex; background: var(--bg-card); border-bottom: 1px solid var(--border-color); overflow-x: auto; }
+        .nav-tab { flex: 1; min-width: max-content; padding: 0.75rem 0.5rem; text-align: center; cursor: pointer; transition: all 0.3s; border: none; background: none; color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+        .nav-tab.active { color: var(--accent-yellow); border-bottom: 3px solid var(--accent-yellow); }
+        .screen { display: none; padding: 1rem; }
+        .screen.active { display: block; }
+        .setup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 2rem; text-align: center; }
+        .setup-screen h1 { font-family: 'Bangers', cursive; font-size: 2.5rem; color: var(--accent-yellow); margin-bottom: 0.5rem; }
+        .setup-screen .subtitle { color: var(--text-secondary); margin-bottom: 2rem; }
+        .setup-box { background: var(--bg-card); padding: 2rem; border-radius: 16px; width: 100%; max-width: 400px; }
+        .role-buttons { display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.5rem; }
+        .role-btn { padding: 1.5rem; border: 2px solid var(--border-color); border-radius: 12px; background: transparent; color: var(--text-primary); cursor: pointer; transition: all 0.3s; text-align: left; }
+        .role-btn:hover, .role-btn.selected { border-color: var(--accent-yellow); background: rgba(255, 215, 0, 0.1); }
+        .role-btn .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+        .role-btn .title { font-weight: 700; font-size: 1.1rem; }
+        .role-btn .desc { font-size: 0.85rem; color: var(--text-secondary); }
+        .input-group { margin-bottom: 1rem; }
+        .input-group label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+        .input-group input, .input-group textarea, .input-group select { width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-dark); color: var(--text-primary); font-size: 1rem; }
+        .input-group input:focus, .input-group textarea:focus, .input-group select:focus { outline: none; border-color: var(--accent-yellow); }
+        .btn { padding: 0.75rem 1.5rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s; font-size: 1rem; }
+        .btn-primary { background: var(--accent-yellow); color: var(--bg-dark); }
+        .btn-secondary { background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); }
+        .btn-danger { background: var(--accent-red); color: white; }
+        .btn-success { background: var(--accent-green); color: var(--bg-dark); }
+        .btn-block { width: 100%; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; }
+        .event-card { border-left: 4px solid var(--border-color); }
+        .event-card.attended { border-left-color: var(--accent-green); }
+        .event-card.absent { border-left-color: var(--accent-red); }
+        .event-card.planned { border-left-color: var(--accent-blue); }
+        .event-card .date { font-size: 0.8rem; color: var(--text-secondary); }
+        .event-card .title { font-weight: 700; margin: 0.25rem 0; }
+        .event-card .location { font-size: 0.85rem; color: var(--text-secondary); }
+        .event-card .status { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; margin-top: 0.5rem; }
+        .event-card .status.present { background: rgba(74, 222, 128, 0.2); color: var(--accent-green); }
+        .event-card .status.absent { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+        .event-card .status.planned { background: rgba(59, 130, 246, 0.2); color: var(--accent-blue); }
+        .event-card .actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+        .event-card .actions .btn { flex: 1; padding: 0.5rem; font-size: 0.8rem; min-width: 80px; }
+        .week-header { background: linear-gradient(90deg, var(--accent-yellow), transparent); color: var(--bg-dark); font-weight: 700; padding: 0.5rem 1rem; border-radius: 8px; margin: 1rem 0 0.5rem; }
+        .stats-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem; }
+        .stat-card { background: var(--bg-card); padding: 1rem; border-radius: 12px; text-align: center; }
+        .stat-card .number { font-size: 2rem; font-weight: 700; color: var(--accent-yellow); }
+        .stat-card .label { font-size: 0.85rem; color: var(--text-secondary); }
+        .leaderboard-item { display: flex; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .leaderboard-item .rank { width: 30px; height: 30px; border-radius: 50%; background: var(--border-color); display: flex; align-items: center; justify-content: center; font-weight: 700; margin-right: 1rem; }
+        .leaderboard-item:nth-child(1) .rank { background: gold; color: #000; }
+        .leaderboard-item:nth-child(2) .rank { background: silver; color: #000; }
+        .leaderboard-item:nth-child(3) .rank { background: #cd7f32; color: #fff; }
+        .leaderboard-item .name { flex: 1; }
+        .leaderboard-item .score { font-weight: 700; color: var(--accent-green); }
+        .leaderboard-item .score.bad { color: var(--accent-red); }
+        .anzeige-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--accent-red); }
+        .anzeige-card .header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .anzeige-card .vs { font-weight: 700; color: var(--accent-yellow); }
+        .anzeige-card .date { font-size: 0.8rem; color: var(--text-secondary); }
+        .anzeige-card .tatbestand { font-size: 0.9rem; color: var(--text-secondary); padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 0.5rem 0; }
+        .anzeige-card .strafe { font-size: 0.85rem; color: var(--accent-red); font-weight: 600; }
+        .info-box { background: rgba(245, 197, 24, 0.1); border: 1px solid var(--accent-yellow); border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+        .info-box p { font-size: 0.9rem; color: var(--text-secondary); }
+        .section-header { margin: 1.5rem 0 1rem; }
+        .section-header h2 { font-size: 1.1rem; color: var(--accent-yellow); border-bottom: 2px solid var(--accent-yellow); padding-bottom: 0.5rem; }
+        .empty-state { text-align: center; padding: 2rem; color: var(--text-secondary); }
+        .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent-green); color: white; padding: 1rem 2rem; border-radius: 8px; opacity: 0; transition: opacity 0.3s; z-index: 9999; font-weight: 600; }
+        .toast.show { opacity: 1; }
+        .toast.error { background: var(--accent-red); }
+        .offline-banner { position: fixed; top: 0; left: 0; right: 0; background: var(--accent-red); color: white; text-align: center; padding: 0.5rem; font-size: 0.8rem; z-index: 1000; transform: translateY(-100%); transition: transform 0.3s; }
+        .offline-banner.show { transform: translateY(0); }
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 500; opacity: 0; visibility: hidden; transition: all 0.3s; }
+        .modal-overlay.active { opacity: 1; visibility: visible; }
+        .modal { background: var(--bg-card); border-radius: 16px; padding: 1.5rem; width: 90%; max-width: 400px; max-height: 90vh; overflow-y: auto; }
+        .modal h3 { margin-bottom: 1rem; color: var(--accent-yellow); }
+        .modal-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+        .modal-actions .btn { flex: 1; }
+        .config-btn { position: fixed; bottom: 20px; right: 20px; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-card); border: 2px solid var(--border-color); color: var(--text-secondary); font-size: 1.5rem; cursor: pointer; z-index: 100; }
+        .hidden { display: none !important; }
+        #qr-reader { border: 2px solid var(--accent-yellow); border-radius: 12px; overflow: hidden; }
+        .attendance-row { display: flex; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; gap: 0.75rem; }
+        .attendance-row .member-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+        .attendance-buttons { display: flex; gap: 0.5rem; }
+        .att-btn { width: 40px; height: 40px; border-radius: 50%; border: 2px solid var(--border-color); background: transparent; color: var(--text-secondary); font-size: 1.1rem; cursor: pointer; transition: all 0.2s; }
+        .att-btn:hover { border-color: var(--accent-yellow); }
+        .att-btn.present { background: var(--accent-green); border-color: var(--accent-green); color: white; }
+        .att-btn.absent { background: var(--accent-red); border-color: var(--accent-red); color: white; }
+        .filter-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .filter-row select { flex: 1; min-width: 120px; }
+        .tag { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem; }
+        .tag.bus { background: var(--accent-blue); color: white; }
+        .tag.register { background: var(--accent-purple); color: white; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .list-item .name { font-weight: 600; }
+        .list-item .actions { display: flex; gap: 0.5rem; }
+        .plan-btn { padding: 0.3rem 0.6rem; font-size: 0.75rem; border-radius: 4px; }
+        .plan-btn.active { background: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+        .brett-post { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; border-left: 4px solid var(--accent-green); }
+        .brett-post .post-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+        .brett-post .post-title { font-weight: 700; font-size: 1.1rem; color: var(--accent-yellow); }
+        .brett-post .post-meta { font-size: 0.75rem; color: var(--text-secondary); }
+        .brett-post .post-content { color: var(--text-primary); line-height: 1.5; margin: 0.75rem 0; white-space: pre-wrap; }
+        .brett-post .post-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+        .kommentar { background: rgba(255,255,255,0.05); border-radius: 8px; padding: 0.75rem; margin-top: 0.5rem; margin-left: 1rem; border-left: 2px solid var(--border-color); }
+        .kommentar .kom-header { display: flex; justify-content: space-between; font-size: 0.8rem; }
+        .kommentar .kom-autor { font-weight: 600; color: var(--accent-blue); }
+        .kommentar .kom-date { color: var(--text-secondary); }
+        .kommentar .kom-text { margin-top: 0.25rem; font-size: 0.9rem; }
+        .kommentare-section { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border-color); position: relative; }
+        .kommentar-input { display: flex; gap: 0.5rem; margin-top: 0.5rem; position: relative; z-index: 10; }
+        .kommentar-input input { flex: 1; padding: 0.75rem; font-size: 1rem; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-dark); color: var(--text-primary); -webkit-appearance: none; appearance: none; }
+        .kommentar-input input:focus { outline: none; border-color: var(--accent-yellow); background: var(--bg-card); }
+        .kommentar-input input::placeholder { color: var(--text-secondary); }
+        .setting-item { margin-bottom: 1rem; }
+        .setting-desc { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem; margin-left: 0.5rem; }
+        .toggle-label { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+        .toggle-label input { display: none; }
+        .toggle-slider { width: 50px; height: 26px; background: var(--border-color); border-radius: 13px; position: relative; transition: 0.3s; }
+        .toggle-slider::before { content: ''; position: absolute; width: 22px; height: 22px; background: white; border-radius: 50%; top: 2px; left: 2px; transition: 0.3s; }
+        .toggle-label input:checked + .toggle-slider { background: var(--accent-green); }
+        .toggle-label input:checked + .toggle-slider::before { transform: translateX(24px); }
+        .zusage-btn { padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.9rem; cursor: pointer; border: 2px solid var(--accent-green); background: transparent; color: var(--accent-green); transition: all 0.2s; }
+        .zusage-btn.active { background: var(--accent-green); color: white; }
+        .zusage-btn:hover { opacity: 0.8; }
+        .register-member { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .register-member .status { font-size: 1.2rem; }
+        .register-member.zugesagt { border-left: 3px solid var(--accent-green); }
+        .register-member.nicht-zugesagt { border-left: 3px solid var(--border-color); opacity: 0.7; }
+        .badge { background: var(--accent-red); color: white; padding: 0.2rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.5rem; }
+        .rolle-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; border-left: 3px solid var(--accent-purple); }
+        .rolle-item .rolle-name { font-weight: 600; }
+        .rolle-item .rolle-perms { font-size: 0.75rem; color: var(--text-secondary); }
+        .rolle-item.system-rolle { border-left-color: var(--accent-yellow); }
+        .anfrage-item { padding: 1rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.75rem; border-left: 3px solid var(--accent-orange); }
+        .anfrage-item .anfrage-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+        .anfrage-item .anfrage-change { color: var(--text-secondary); font-size: 0.9rem; }
+        .anfrage-item .anfrage-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+        .bereich-item { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-card); border-radius: 8px; margin-bottom: 0.5rem; }
+        .bereich-item .bereich-typ { font-size: 0.75rem; color: var(--text-secondary); }
+        .forum-tabs { display: flex; overflow-x: auto; gap: 0.5rem; padding: 0.5rem 0; margin-bottom: 1rem; }
+        .forum-tab { position: relative; padding: 0.5rem 1rem; border-radius: 20px; background: var(--bg-card); border: none; color: var(--text-primary); cursor: pointer; white-space: nowrap; font-size: 0.9rem; }
+        .forum-tab.active { background: var(--accent-blue); color: white; }
+        .forum-tab.register-tab { border-left: 3px solid var(--accent-purple); }
+        .forum-tab .bereich-badge { position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
+        .news-section { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .news-tab-btn { flex: 1; padding: 0.75rem; border-radius: 12px; background: var(--bg-card); border: 2px solid transparent; color: var(--text-primary); font-weight: 600; position: relative; }
+        .news-tab-btn.active { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+        .news-tab-btn:not(.active):hover { border-color: var(--accent-blue); }
+        .news-tab-btn .badge { position: absolute; top: -5px; right: -5px; }
+        .news-card { background: linear-gradient(135deg, var(--accent-red) 0%, #c0392b 100%); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; color: white; }
+        .news-card .news-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+        .news-card .news-title { font-weight: 700; font-size: 1.1rem; }
+        .news-card .news-date { font-size: 0.75rem; opacity: 0.8; }
+        .news-card .news-content { font-size: 0.95rem; line-height: 1.5; }
+        .news-card .news-author { font-size: 0.8rem; opacity: 0.7; margin-top: 0.75rem; text-align: right; }
+        .weekend-event-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; border-left: 4px solid var(--accent-blue); transition: transform 0.2s; }
+        .weekend-event-card:hover { transform: translateX(5px); }
+        .weekend-event-card .event-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
+        .weekend-event-card .event-info { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem; }
+        .weekend-event-card .register-bars { display: flex; flex-direction: column; gap: 0.25rem; }
+        .register-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; }
+        .register-bar .bar-label { width: 80px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .register-bar .bar-container { flex: 1; height: 16px; background: var(--bg-input); border-radius: 8px; overflow: hidden; }
+        .register-bar .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent-green), var(--accent-blue)); border-radius: 8px; transition: width 0.3s; }
+        .register-bar .bar-count { width: 50px; text-align: right; font-weight: 600; }
+        .weekend-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 1rem; }
+        .weekend-summary .stat-box { background: var(--bg-card); padding: 0.75rem; border-radius: 8px; text-align: center; }
+        .weekend-summary .stat-box .number { font-size: 1.5rem; font-weight: 700; }
+        .weekend-summary .stat-box .label { font-size: 0.75rem; color: var(--text-secondary); }
+        .member-attendance-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color); }
+        .member-attendance-row .status-icon { font-size: 1.2rem; }
+        .member-attendance-row.anwesend { border-left: 3px solid var(--accent-green); }
+        .member-attendance-row.abwesend { border-left: 3px solid var(--accent-red); opacity: 0.8; }
+        .member-attendance-row.unknown { border-left: 3px solid var(--border-color); opacity: 0.6; }
+        --accent-orange: #f97316;
+        --accent-red: #ef4444;
+        
+        /* Accordion Styles */
+        .settings-accordion { margin-bottom: 0.5rem; border-radius: 12px; overflow: hidden; background: var(--bg-card); }
+        .accordion-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 1rem; background: var(--bg-card); border: none; color: var(--text-primary); font-size: 1rem; font-weight: 600; cursor: pointer; text-align: left; }
+        .accordion-header:hover { background: rgba(255,255,255,0.05); }
+        .accordion-header.active { border-bottom: 1px solid var(--border-color); }
+        .accordion-icon { transition: transform 0.3s ease; font-size: 0.8rem; }
+        .accordion-header.active .accordion-icon { transform: rotate(180deg); }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 1rem; }
+        .accordion-content.open { max-height: 2000px; padding: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading"><div class="spinner"></div><div class="loading-text">Laden...</div></div>
+    <div class="offline-banner" id="offline-banner">⚠️ Offline - Daten werden lokal gespeichert</div>
     
-    const options = {
-        body: data.body,
-        icon: data.icon || 'icon-192.png',
-        badge: data.badge || 'icon-192.png',
-        tag: data.tag || 'lkt-notification',
-        requireInteraction: true,
-        vibrate: [200, 100, 200],
-        data: {
-            url: data.url || '/'
-        },
-        actions: [
-            { action: 'open', title: 'Öffnen' },
-            { action: 'close', title: 'Schließen' }
-        ]
-    };
+    <!-- Setup Screen -->
+    <div class="setup-screen" id="setup-screen">
+        <h1>🎺 LKT TRACKER</h1>
+        <p class="subtitle">Saison 2026</p>
+        <div class="setup-box">
+            <div id="setup-step-1" class="hidden"></div>
+            <div id="setup-step-2" class="hidden">
+                <h3 style="margin-bottom: 1rem;">Wer bist du?</h3>
+                <div class="role-buttons">
+                    <button class="role-btn" onclick="selectRole('member')">
+                        <div class="icon">🎺</div>
+                        <div class="title">Mitglied</div>
+                        <div class="desc">Anwesenheit tracken & Strafanzeigen erstellen</div>
+                    </button>
+                    <button class="role-btn" onclick="selectRole('gericht')">
+                        <div class="icon">⚖️</div>
+                        <div class="title">Admin</div>
+                        <div class="desc">Admin-Zugang mit speziellem PIN</div>
+                    </button>
+                </div>
+            </div>
+            <div id="setup-step-3" class="hidden">
+                <h3 style="margin-bottom: 1rem;">🎺 Mitglied Login</h3>
+                <div class="input-group"><label>Dein Name</label><input type="text" id="member-name-input" placeholder="Max Mustermann"></div>
+                <div class="input-group"><label>Deine PIN (4 Ziffern)</label><input type="number" id="member-pin-input" placeholder="1234" maxlength="4"></div>
+                <button class="btn btn-primary btn-block" onclick="loginMember()">Einloggen</button>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 1rem; text-align: center;">
+                    Noch nicht registriert? <a href="#" onclick="showStep(4); return false;" style="color: var(--accent-yellow);">Hier registrieren</a>
+                </p>
+                <p style="font-size: 0.8rem; text-align: center; margin-top: 0.5rem;">
+                    <a href="#" onclick="showPinForgottenModal(); return false;" style="color: var(--accent-red);">🔑 PIN vergessen?</a>
+                </p>
+            </div>
+            <div id="setup-step-4" class="hidden">
+                <h3 style="margin-bottom: 1rem;">🎺 Neu registrieren</h3>
+                <div class="input-group"><label>Dein Name</label><input type="text" id="register-name-input" placeholder="Max Mustermann"></div>
+                <div class="input-group"><label>Wähle eine PIN (mind. 4 Zeichen)</label><input type="password" id="register-pin-input" placeholder="****" minlength="4"></div>
+                <button class="btn btn-primary btn-block" onclick="registerMember()">📨 Anfrage senden</button>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 1rem; text-align: center;">
+                    Ein Admin muss deine Registrierung bestätigen.<br>
+                    Bereits registriert? <a href="#" onclick="showStep(3); return false;" style="color: var(--accent-yellow);">Zum Login</a>
+                </p>
+            </div>
+            <div id="setup-step-5" class="hidden">
+                <h3 style="margin-bottom: 1rem;">⚖️ Admin Login</h3>
+                <div class="input-group"><label>Gericht-PIN</label><input type="password" id="gericht-pin-input" placeholder="****"></div>
+                <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">Nur für das Hohe Gericht</p>
+                <button class="btn btn-primary btn-block" onclick="loginGericht()">Einloggen</button>
+                <button class="btn btn-secondary btn-block" style="margin-top: 0.5rem;" onclick="showStep(2)">Zurück</button>
+            </div>
+        </div>
+    </div>
     
-    event.waitUntil(
-        self.registration.showNotification(data.title, options)
-    );
-});
+    <!-- Main App -->
+    <div id="main-app" class="hidden">
+        <div class="header">
+            <h1>🎺 LKT TRACKER 2026</h1>
+            <div class="user-info" id="user-info">Mitglied</div>
+        </div>
+        
+        <!-- Member Navigation -->
+        <nav class="nav-tabs" id="member-nav">
+            <button class="nav-tab active" data-tab="events">📅 Auftritte</button>
+            <button class="nav-tab" data-tab="brett">📋 Brett <span class="badge hidden" id="brett-badge-member">0</span></button>
+            <button class="nav-tab" data-tab="register-view">🎵 Register</button>
+            <button class="nav-tab hidden" data-tab="scanner" id="nav-scanner">📷 Scannen</button>
+            <button class="nav-tab" data-tab="profile">👤 Profil</button>
+            <button class="nav-tab hidden" data-tab="anzeige" id="nav-anzeige">⚖️ Anzeige</button>
+            <button class="nav-tab" data-tab="stats">📊 Stats</button>
+        </nav>
+        
+        <!-- Gericht Navigation -->
+        <nav class="nav-tabs hidden" id="gericht-nav">
+            <button class="nav-tab active" data-tab="overview">📊 Übersicht</button>
+            <button class="nav-tab" data-tab="my-events">📅 Meine Auftritte</button>
+            <button class="nav-tab" data-tab="attendance">✅ Anwesenheit</button>
+            <button class="nav-tab" data-tab="qr-codes" id="nav-qr-codes">📱 QR-Codes</button>
+            <button class="nav-tab" data-tab="brett-gericht">📋 Brett <span class="badge hidden" id="brett-badge-gericht">0</span></button>
+            <button class="nav-tab" data-tab="members">👥 Mitglieder</button>
+            <button class="nav-tab" data-tab="anzeigen">⚖️ Anzeigen</button>
+            <button class="nav-tab" data-tab="rankings">🏆 Ranglisten</button>
+            <button class="nav-tab" data-tab="settings">⚙️ Einstellungen</button>
+        </nav>
+        
+        <!-- Member Screens -->
+        <div id="member-screens">
+            <!-- Events Tab -->
+            <div id="events-tab" class="screen active">
+                <div class="section-header"><h2>Deine Auftritte</h2></div>
+                <div id="events-list"></div>
+            </div>
+            
+            <!-- Schwarzes Brett Tab -->
+            <div id="brett-tab" class="screen">
+                <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
+                
+                <!-- News Tab als erstes (immer sichtbar) -->
+                <div class="news-section" style="margin-bottom: 1rem;">
+                    <button class="btn news-tab-btn active" onclick="showBrettSection('news')" id="news-tab-btn">
+                        📢 Wichtige News <span class="badge news-badge" id="news-unread-badge" style="display: none;">0</span>
+                    </button>
+                    <button class="btn news-tab-btn" onclick="showBrettSection('forum')" id="forum-tab-btn">
+                        💬 Forum
+                    </button>
+                </div>
+                
+                <!-- Wichtige News Bereich -->
+                <div id="news-section">
+                    <div id="news-posts"></div>
+                </div>
+                
+                <!-- Forum Bereich -->
+                <div id="forum-section" style="display: none;">
+                    <div class="forum-tabs" id="forum-tabs-member"></div>
+                    <div class="card" id="new-post-form">
+                        <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
+                        <div class="input-group"><input type="text" id="post-titel" placeholder="Titel"></div>
+                        <div class="input-group"><textarea id="post-inhalt" rows="3" placeholder="Was gibt's Neues?"></textarea></div>
+                        <button class="btn btn-primary btn-block" onclick="submitBrettPost()">📤 Veröffentlichen</button>
+                    </div>
+                    <div id="brett-posts-member"></div>
+                </div>
+            </div>
+            
+            <!-- Register View Tab -->
+            <div id="register-view-tab" class="screen">
+                <div class="section-header"><h2>🎵 Mein Register</h2></div>
+                
+                <!-- Wochenend-Übersicht für Register -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <h3 style="color: var(--accent-yellow); margin-bottom: 0.75rem;">📅 Wochenend-Übersicht</h3>
+                    <div class="input-group">
+                        <label>Wochenende auswählen</label>
+                        <select id="member-weekend-select" onchange="loadMemberWeekendOverview()">
+                            <option value="">-- Wochenende wählen --</option>
+                        </select>
+                    </div>
+                    <div id="member-weekend-overview"></div>
+                </div>
+                
+                <!-- Einzelner Auftritt -->
+                <div class="card">
+                    <h3 style="color: var(--accent-blue); margin-bottom: 0.75rem;">🎺 Einzelner Auftritt</h3>
+                    <div class="input-group">
+                        <label>Auftritt auswählen</label>
+                        <select id="register-event-select" onchange="loadRegisterZusagen()">
+                            <option value="">-- Auftritt wählen --</option>
+                        </select>
+                    </div>
+                    <div id="register-zusagen-info" class="info-box hidden">
+                        <p><strong id="register-name-display">-</strong></p>
+                        <p id="register-zusagen-count">0 / 0 haben zugesagt</p>
+                    </div>
+                    <div id="register-members-list"></div>
+                </div>
+                
+                <!-- Alle Register-Zusagen (nur für berechtigte User) -->
+                <div id="all-register-zusagen-section" class="card hidden" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-purple); margin-bottom: 0.75rem;">📊 Alle Register-Zusagen</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">Übersicht aller Register für die Woche (ohne Namen)</p>
+                    <button class="btn btn-primary btn-block" onclick="showAllRegisterZusagenModal()">📊 Übersicht öffnen</button>
+                </div>
+            </div>
+            
+            <!-- Scanner Tab -->
+            <div id="scanner-tab" class="screen">
+                <div class="section-header"><h2>📷 QR-Code Scannen</h2></div>
+                <div class="info-box"><p>📱 Scanne den QR-Code beim Auftritt!</p></div>
+                <div id="qr-reader" style="width: 100%; max-width: 400px; margin: 1rem auto;"></div>
+                <button class="btn btn-primary btn-block" id="start-scan-btn" onclick="startScanner()">📷 Scanner starten</button>
+                <button class="btn btn-secondary btn-block hidden" id="stop-scan-btn" onclick="stopScanner()">⏹ Scanner stoppen</button>
+                <div id="scan-success" class="hidden" style="text-align: center; padding: 2rem;">
+                    <div style="font-size: 4rem;">✅</div>
+                    <p style="font-size: 1.2rem; font-weight: 700; margin-top: 1rem;" id="success-text">Eingecheckt!</p>
+                </div>
+            </div>
+            
+            <!-- Profile Tab (NEW) -->
+            <div id="profile-tab" class="screen">
+                <div class="section-header"><h2>👤 Mein Profil</h2></div>
+                <div class="card">
+                    <div style="text-align: center; margin-bottom: 1rem;">
+                        <div style="font-size: 4rem;">🎺</div>
+                        <div style="font-size: 1.5rem; font-weight: 700;" id="profile-display-name">-</div>
+                        <div style="color: var(--text-secondary);" id="profile-display-spitzname"></div>
+                    </div>
+                    <div class="input-group">
+                        <label>Mein fester Bus</label>
+                        <select id="profile-bus"><option value="">-- Kein fester Bus --</option></select>
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Optional - wird beim Einchecken vorausgefüllt</p>
+                    </div>
+                    <div class="input-group">
+                        <label>Mein Register</label>
+                        <select id="profile-register"><option value="">-- Register wählen --</option></select>
+                    </div>
+                    <button class="btn btn-primary btn-block" onclick="saveBusRegister()">💾 Bus & Register speichern</button>
+                </div>
+                
+                <!-- Persönliche Daten -->
+                <div class="card" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">📋 Meine Daten</h3>
+                    <div class="input-group">
+                        <label>Spitzname</label>
+                        <input type="text" id="profile-spitzname" placeholder="Dein Spitzname">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div class="input-group">
+                            <label>Email</label>
+                            <input type="email" id="profile-email" placeholder="deine@email.de">
+                        </div>
+                        <div class="input-group">
+                            <label>Telefon</label>
+                            <input type="tel" id="profile-telefon" placeholder="0170 1234567">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Geburtstag (TT.MM.JJJJ)</label>
+                        <input type="text" id="profile-geburtstag" placeholder="01.01.1990">
+                    </div>
+                    
+                    <div class="section-header" style="margin-top: 1rem;"><h4>👕 Kleidungsgrößen</h4></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div class="input-group">
+                            <label>Schuhgröße</label>
+                            <input type="text" id="profile-schuhgroesse" placeholder="42">
+                        </div>
+                        <div class="input-group">
+                            <label>Hosengröße</label>
+                            <input type="text" id="profile-hosengroesse" placeholder="32/32">
+                        </div>
+                        <div class="input-group">
+                            <label>Hemdengröße</label>
+                            <input type="text" id="profile-hemdengroesse" placeholder="M">
+                        </div>
+                        <div class="input-group">
+                            <label>Größe allgemein</label>
+                            <input type="text" id="profile-groesseAllgemein" placeholder="M">
+                        </div>
+                    </div>
+                    <button class="btn btn-success btn-block" onclick="savePersonalData()">💾 Persönliche Daten speichern</button>
+                </div>
+                
+                <!-- Anmeldedaten ändern -->
+                <div class="card" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-blue); margin-bottom: 1rem;">🔐 Anmeldedaten ändern</h3>
+                    <div class="input-group">
+                        <label>Neuer Benutzername (optional)</label>
+                        <input type="text" id="new-username" placeholder="Leer lassen = nicht ändern">
+                    </div>
+                    <div class="input-group">
+                        <label>Neuer PIN (optional)</label>
+                        <input type="password" id="new-pin" placeholder="Leer lassen = nicht ändern" minlength="4">
+                    </div>
+                    <div class="input-group">
+                        <label>PIN wiederholen</label>
+                        <input type="password" id="new-pin-confirm" placeholder="Neuen PIN bestätigen">
+                    </div>
+                    <button class="btn btn-secondary btn-block" onclick="changeCredentials()">🔑 Anmeldedaten ändern</button>
+                </div>
+                
+                <!-- Push-Benachrichtigungen -->
+                <div class="card" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-purple); margin-bottom: 1rem;">🔔 Benachrichtigungen</h3>
+                    <div id="push-not-supported" class="hidden">
+                        <p style="color: var(--accent-red);">Push-Benachrichtigungen werden in diesem Browser nicht unterstützt.</p>
+                    </div>
+                    <div id="push-settings-container">
+                        <button class="btn btn-secondary btn-block" id="push-enable-btn" onclick="enablePushNotifications()">🔔 Benachrichtigungen aktivieren</button>
+                        <div id="push-settings" class="hidden" style="margin-top: 1rem;">
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>📢 Wichtige News</span>
+                                    <input type="checkbox" id="push-news" onchange="savePushSettingsLocal()" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Wichtige Ankündigungen vom Verein</p>
+                            </div>
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>📅 Event-Erinnerungen</span>
+                                    <input type="checkbox" id="push-event-reminder" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="input-group" id="reminder-time-group">
+                                <label>Erinnerungszeit vor Event</label>
+                                <select id="push-reminder-time" onchange="savePushSettingsLocal()">
+                                    <option value="30">30 Minuten vorher</option>
+                                    <option value="60">1 Stunde vorher</option>
+                                    <option value="120">2 Stunden vorher</option>
+                                </select>
+                            </div>
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>💬 Neue Forum-Beiträge</span>
+                                    <input type="checkbox" id="push-forum-posts" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>🎵 Beiträge in meinem Register</span>
+                                    <input type="checkbox" id="push-register-posts" onchange="savePushSettingsLocal()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-danger btn-block" style="margin-top: 1rem;" onclick="logout()">🚪 Ausloggen</button>
+            </div>
+            
+            <!-- Anzeige Tab -->
+            <div id="anzeige-tab" class="screen">
+                <div class="section-header"><h2>⚖️ Strafanzeige erstatten</h2></div>
+                <div class="info-box" style="background: rgba(239,68,68,0.1); border-color: var(--accent-red);">
+                    <p>🚨 Entsprechend der Satzung des Vereins wird es dem Anzeigenden ermöglicht, einen Vorschlag für ein angemessenes Strafmaß vorzuschlagen.</p>
+                </div>
+                <div class="input-group"><label>Name des Beschuldigten *</label><input type="text" id="anzeige-beschuldigter" placeholder="Wer hat was verbrochen?"></div>
+                <div class="input-group"><label>Tatbestand *</label><textarea id="anzeige-tatbestand" rows="3" placeholder="Was ist passiert? Wann, wo?"></textarea></div>
+                <div class="input-group"><label>Zeugen</label><input type="text" id="anzeige-zeugen" placeholder="Namen der Zeugen (optional)"></div>
+                <div class="input-group"><label>Strafvorschlag *</label><input type="text" id="anzeige-strafe" placeholder="z.B. 1 Kasten Bier"></div>
+                <button class="btn btn-danger btn-block" onclick="submitAnzeige()">⚖️ Anzeige einreichen</button>
+            </div>
+            
+            <!-- Stats Tab -->
+            <div id="stats-tab" class="screen">
+                <div class="section-header"><h2>📊 Deine Statistik</h2></div>
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="number" id="my-attended">0</div><div class="label">Teilgenommen</div></div>
+                    <div class="stat-card"><div class="number" id="my-missed">0</div><div class="label">Verpasst</div></div>
+                </div>
+                <div class="stat-card" style="text-align: center;">
+                    <div class="number" id="my-rate">0%</div><div class="label">Deine Anwesenheitsquote</div>
+                </div>
+                
+                <!-- Register-Statistik -->
+                <div class="section-header" style="margin-top: 1.5rem;"><h2>🎵 Dein Register</h2></div>
+                <div id="my-register-stats">
+                    <div class="card" style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);" id="my-register-name">-</div>
+                        <div class="number" style="font-size: 2rem; color: var(--accent-blue);" id="my-register-rate">-</div>
+                        <div class="label">Register-Quote</div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);" id="my-register-detail">- dabei / - gesamt</div>
+                    </div>
+                </div>
+                
+                <!-- Bus-Statistik -->
+                <div class="section-header" style="margin-top: 1.5rem;"><h2>🚌 Dein Bus</h2></div>
+                <div id="my-bus-stats">
+                    <div class="card" style="text-align: center;">
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);" id="my-bus-name">-</div>
+                        <div class="number" style="font-size: 2rem; color: var(--accent-green);" id="my-bus-rate">-</div>
+                        <div class="label">Bus-Quote</div>
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);" id="my-bus-detail">- dabei / - gesamt</div>
+                    </div>
+                </div>
+                
+                <!-- Komplette Bus/Register-Statistik (nur für berechtigte User) -->
+                <div id="full-stats-section" class="hidden">
+                    <div class="section-header" style="margin-top: 1.5rem;"><h2>🚌 Alle Busse</h2></div>
+                    <div id="member-bus-stats-list"></div>
+                    
+                    <div class="section-header" style="margin-top: 1.5rem;"><h2>🎵 Alle Register</h2></div>
+                    <div id="member-register-stats-list"></div>
+                </div>
+                
+                <button class="btn btn-secondary btn-block" style="margin-top: 1.5rem;" onclick="loadMemberGroupStats()">🔄 Statistik aktualisieren</button>
+            </div>
+        </div>
+        
+        <!-- Gericht Screens -->
+        <div id="gericht-screens" class="hidden">
+            <!-- Overview Tab -->
+            <div id="overview-tab" class="screen active">
+                <div class="section-header"><h2>📊 Übersicht</h2></div>
+                <div class="stats-grid">
+                    <div class="stat-card"><div class="number" id="total-members">0</div><div class="label">Mitglieder</div></div>
+                    <div class="stat-card"><div class="number" id="total-events">0</div><div class="label">Auftritte</div></div>
+                    <div class="stat-card"><div class="number" id="total-checkins">0</div><div class="label">Check-ins</div></div>
+                    <div class="stat-card"><div class="number" id="total-anzeigen">0</div><div class="label">Anzeigen</div></div>
+                </div>
+                <div class="stat-card" style="text-align: center;">
+                    <div class="number" id="overall-rate">0%</div><div class="label">Gesamte Anwesenheitsquote</div>
+                </div>
+                <button class="btn btn-primary btn-block" style="margin-top: 1rem;" onclick="refreshData()">🔄 Daten aktualisieren</button>
+                <button class="btn btn-secondary btn-block" style="margin-top: 0.5rem;" onclick="exportReportPDF()">📄 Saison-Report PDF</button>
+                <div class="section-header"><h2>🚌 Bus-Statistik</h2></div>
+                <div id="bus-stats-list"></div>
+                <button class="btn btn-secondary btn-block" onclick="exportBusStatsPDF()">📄 Bus-Statistik PDF</button>
+                <div class="section-header"><h2>🎵 Register-Statistik</h2></div>
+                <div id="register-stats-list"></div>
+                <button class="btn btn-secondary btn-block" onclick="exportRegisterStatsPDF()">📄 Register-Statistik PDF</button>
+            </div>
+            
+            <!-- Meine Auftritte Tab (für Admin/Chef zum selbst anmelden) -->
+            <div id="my-events-tab" class="screen">
+                <div class="section-header"><h2>📅 Meine Auftritte</h2></div>
+                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Hier kannst du dich selbst zu Auftritten anmelden.</p>
+                <div id="my-events-list"></div>
+            </div>
+            
+            <!-- QR-Codes Tab -->
+            <div id="qr-codes-tab" class="screen">
+                <div class="section-header"><h2>📱 Auftritts-QR-Codes</h2></div>
+                <div class="info-box" style="background: rgba(234,179,8,0.1); border-color: var(--accent-yellow);">
+                    <p>Zeige den QR-Code beim Auftritt - Mitglieder können ihn scannen um einzuchecken.</p>
+                </div>
+                <div class="input-group">
+                    <label>Auftritt auswählen</label>
+                    <select id="qr-event-select" onchange="showEventQR()"><option value="">-- Auftritt wählen --</option></select>
+                </div>
+                <div id="event-qr-display" class="hidden" style="text-align: center; padding: 1rem;">
+                    <div id="event-qr-canvas" style="display: inline-block; background: white; padding: 1rem; border-radius: 12px;"></div>
+                    <p style="margin-top: 1rem; font-weight: 700; font-size: 1.2rem;" id="event-qr-label"></p>
+                    <p style="font-size: 0.9rem; color: var(--text-secondary);" id="event-qr-sublabel"></p>
+                    <button class="btn btn-primary btn-block" style="margin-top: 1rem;" onclick="downloadEventQRPDF()">📄 QR-Code als PDF</button>
+                    <button class="btn btn-secondary btn-block" style="margin-top: 0.5rem;" onclick="downloadEventQR()">📥 QR als Bild</button>
+                </div>
+            </div>
+            
+            <!-- Schwarzes Brett Tab (Gericht) -->
+            <div id="brett-gericht-tab" class="screen">
+                <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
+                <div class="forum-tabs" id="forum-tabs-admin"></div>
+                <div class="card">
+                    <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
+                    <div class="input-group"><input type="text" id="post-titel-gericht" placeholder="Titel"></div>
+                    <div class="input-group"><textarea id="post-inhalt-gericht" rows="3" placeholder="Wichtige Mitteilung..."></textarea></div>
+                    <button class="btn btn-primary btn-block" onclick="submitBrettPostGericht()">📤 Veröffentlichen</button>
+                </div>
+                <div id="brett-posts-gericht"></div>
+            </div>
+            
+            <!-- Attendance Tab -->
+            <div id="attendance-tab" class="screen">
+                <div class="section-header"><h2>✅ Anwesenheitsverwaltung</h2></div>
+                <div class="input-group">
+                    <label>Auftritt auswählen</label>
+                    <select id="attendance-event-select" onchange="loadEventAttendance()"><option value="">-- Auftritt wählen --</option></select>
+                </div>
+                <div class="filter-row">
+                    <select id="att-filter-register" onchange="renderAttendanceTable()"><option value="">Alle Register</option></select>
+                    <select id="att-filter-week" onchange="renderAttendanceTable()"><option value="">Alle Wochenenden</option></select>
+                </div>
+                <div id="attendance-table-container" class="hidden">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 1rem 0;">
+                        <div>
+                            <span style="color: var(--accent-green);">✓ <span id="att-count-present">0</span></span> | 
+                            <span style="color: var(--accent-red);">✗ <span id="att-count-absent">0</span></span> | 
+                            <span style="color: var(--accent-blue);">📅 <span id="att-count-planned">0</span></span> |
+                            <span style="color: var(--text-secondary);">? <span id="att-count-unknown">0</span></span>
+                        </div>
+                        <button class="btn btn-secondary" onclick="saveAllAttendance()" style="padding: 0.5rem 1rem;">💾 Speichern</button>
+                    </div>
+                    <div id="attendance-table" style="max-height: 60vh; overflow-y: auto;"></div>
+                </div>
+                
+                <!-- Wochenend-Übersicht -->
+                <div class="section-header" style="margin-top: 2rem;"><h2>📅 Wochenend-Übersicht</h2></div>
+                <div class="input-group">
+                    <label>Wochenende auswählen</label>
+                    <select id="weekend-select" onchange="loadWeekendOverview()">
+                        <option value="">-- Wochenende wählen --</option>
+                    </select>
+                </div>
+                <button class="btn btn-secondary btn-block hidden" id="weekend-export-btn" onclick="exportWeekendPDF()" style="margin-bottom: 1rem;">📄 Wochenend-Übersicht als PDF</button>
+                <div id="weekend-overview"></div>
+                
+                <!-- Event-Detail Modal für Wochenende -->
+                <div class="modal-overlay" id="weekend-event-modal">
+                    <div class="modal">
+                        <h3 id="weekend-event-title">Event Details</h3>
+                        <div id="weekend-event-stats" style="margin: 1rem 0;"></div>
+                        <div class="section-header"><h4>Nach Register</h4></div>
+                        <div id="weekend-event-registers"></div>
+                        <div class="section-header" style="margin-top: 1rem;"><h4>Teilnehmer</h4></div>
+                        <div id="weekend-event-members" style="max-height: 300px; overflow-y: auto;"></div>
+                        <div class="modal-actions">
+                            <button class="btn btn-secondary" onclick="closeWeekendEventModal()">Schließen</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Members Tab -->
+            <div id="members-tab" class="screen">
+                <div class="section-header"><h2>👥 Mitglieder</h2></div>
+                <div class="filter-row">
+                    <select id="member-filter-register" onchange="filterMembersList()"><option value="">Alle Register</option></select>
+                    <select id="member-filter-bus" onchange="filterMembersList()"><option value="">Alle Busse</option></select>
+                </div>
+                <button class="btn btn-secondary btn-block" style="margin-bottom: 1rem;" onclick="exportAllMembersPDF()">📄 Alle Mitglieder als PDF</button>
+                <div id="members-list"></div>
+            </div>
+            
+            <!-- Anzeigen Tab -->
+            <div id="anzeigen-tab" class="screen">
+                <div class="section-header"><h2>⚖️ Strafanzeigen</h2></div>
+                <button class="btn btn-secondary btn-block" style="margin-bottom: 1rem;" onclick="exportAnzeigenPDF()">📄 Anzeigen als PDF</button>
+                <div id="anzeigen-list"></div>
+            </div>
+            
+            <!-- Rankings Tab -->
+            <div id="rankings-tab" class="screen">
+                <div class="section-header"><h2>🏆 Top 10 Fleißigste</h2></div>
+                <div id="top-attenders"></div>
+                <div class="section-header"><h2>😴 Top 10 Faulste</h2></div>
+                <div id="top-absent"></div>
+            </div>
+            
+            <!-- Settings Tab (NEW) -->
+            <div id="settings-tab" class="screen">
+                <div class="section-header"><h2>⚙️ Vereinseinstellungen</h2></div>
+                
+                <!-- Accordion: Admin-Sicherheit (nur für Admin) -->
+                <div class="settings-accordion" id="admin-security-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🔐 Admin-Sicherheit</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div class="input-group">
+                            <label>Neuer Admin-PIN</label>
+                            <input type="password" id="new-admin-pin" placeholder="Neuer PIN eingeben" minlength="4">
+                        </div>
+                        <div class="input-group">
+                            <label>PIN bestätigen</label>
+                            <input type="password" id="new-admin-pin-confirm" placeholder="PIN wiederholen" minlength="4">
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="changeAdminPin()">🔐 Admin-PIN ändern</button>
+                        <p class="setting-desc" style="margin-top: 0.5rem;">Der PIN für den Admin-Login (⚖️ Hohes Gericht)</p>
+                    </div>
+                </div>
+                
+                <!-- Accordion: API-Verbindung -->
+                <div class="settings-accordion">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🔗 API-Verbindung</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content" id="api-url-section">
+                        <div class="input-group">
+                            <label>Google Apps Script URL</label>
+                            <input type="text" id="setting-api-url" placeholder="https://script.google.com/...">
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="saveApiUrl()">💾 URL speichern</button>
+                        <p class="setting-desc" style="margin-top: 0.5rem;">Die Web-App URL deines Google Apps Script Deployments</p>
+                    </div>
+                </div>
+                
+                <!-- Accordion: App-Modi -->
+                <div class="settings-accordion">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📱 App-Modi</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content" id="app-modi-section">
+                        <div class="setting-item">
+                            <label class="toggle-label">
+                                <span>📷 QR-Scanner aktiviert</span>
+                                <input type="checkbox" id="setting-qr-scanner" onchange="saveAppSettings()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="setting-desc">Wenn deaktiviert, können Mitglieder direkt "Ich bin dabei" klicken</p>
+                        </div>
+                        <div class="setting-item">
+                            <label class="toggle-label">
+                                <span>⚖️ Strafen-System aktiviert</span>
+                                <input type="checkbox" id="setting-strafen" onchange="saveAppSettings()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <p class="setting-desc">Wenn deaktiviert, werden Anzeigen-Funktionen ausgeblendet</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Anfragen (immer offen wenn Anfragen da) -->
+                <div class="settings-accordion">
+                    <button class="accordion-header active" onclick="toggleAccordion(this)">
+                        <span>📋 Offene Anfragen <span class="badge" id="total-anfragen-count">0</span></span>
+                        <span class="accordion-icon">▲</span>
+                    </button>
+                    <div class="accordion-content open">
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: var(--accent-green); margin-bottom: 0.5rem;">🆕 Neue Mitglieder <span class="badge" id="registration-count">0</span></h4>
+                            <div id="registration-requests-list">
+                                <div class="empty-state">Keine offenen Anfragen</div>
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: var(--accent-orange); margin-bottom: 0.5rem;">Register-Wechsel <span class="badge" id="anfragen-count">0</span></h4>
+                            <div id="register-anfragen-list"></div>
+                        </div>
+                        <div>
+                            <h4 style="color: var(--accent-red); margin-bottom: 0.5rem;">PIN-Reset <span class="badge" id="pin-reset-count">0</span></h4>
+                            <div id="pin-reset-list">
+                                <div class="empty-state">Keine offenen Anfragen</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Events verwalten -->
+                <div class="settings-accordion">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📅 Veranstaltungen</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div style="margin-bottom: 1rem;">
+                            <h4>Bestehende Events</h4>
+                            <div id="events-manage-list" style="max-height: 250px; overflow-y: auto; margin: 0.5rem 0;"></div>
+                            <button class="btn btn-secondary btn-block" onclick="exportEventsPDF()">📄 Events als PDF</button>
+                        </div>
+                        <hr style="border-color: var(--border-color); margin: 1rem 0;">
+                        <h4>Neues Event erstellen</h4>
+                        <div class="input-group"><label>Name *</label><input type="text" id="new-event-name" placeholder="z.B. Zirkusball"></div>
+                        <div class="input-group">
+                            <label>Wochenende</label>
+                            <select id="new-event-week" onchange="checkNewWeekOption()">
+                                <option value="">-- Wochenende wählen --</option>
+                            </select>
+                        </div>
+                        <div class="input-group hidden" id="new-week-input-group">
+                            <label>Neue Woche (z.B. "WE 5" oder "Extra")</label>
+                            <input type="text" id="new-week-name" placeholder="WE 5">
+                        </div>
+                        <div class="input-group"><label>Datum</label><input type="date" id="new-event-date"></div>
+                        <div class="input-group"><label>Ort</label><input type="text" id="new-event-location" placeholder="z.B. Vereinsheim"></div>
+                        <div class="input-group"><label>Uhrzeit</label><input type="time" id="new-event-time" value="20:00"></div>
+                        <button class="btn btn-primary btn-block" onclick="addNewEvent()">+ Event hinzufügen</button>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Rollen -->
+                <div class="settings-accordion" id="rollen-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>👑 Rollen verwalten</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div id="rollen-list"></div>
+                        <button class="btn btn-secondary btn-block" style="margin-top: 1rem;" onclick="showAddRolleModal()">+ Neue Rolle erstellen</button>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Forum-Bereiche -->
+                <div class="settings-accordion" id="forum-bereiche-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>💬 Forum-Bereiche</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div id="forum-bereiche-list"></div>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <input type="text" id="new-bereich-name" placeholder="Neuer Bereich-Name">
+                        </div>
+                        <div class="input-group">
+                            <select id="new-bereich-typ">
+                                <option value="custom">Allgemeiner Bereich</option>
+                                <option value="register">Register-Bereich (für alle Register)</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="addNewForumBereich()">+ Bereich hinzufügen</button>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Busse -->
+                <div class="settings-accordion">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🚌 Busse verwalten</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div id="busse-list"></div>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <input type="text" id="new-bus-name" placeholder="Neuer Bus-Name (z.B. Bus 1)">
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="addNewBus()">+ Bus hinzufügen</button>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Register -->
+                <div class="settings-accordion">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🎵 Register verwalten</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div id="register-list"></div>
+                        <div class="input-group" style="margin-top: 1rem;">
+                            <input type="text" id="new-register-name" placeholder="Neues Register (z.B. Klarinette)">
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="addNewRegister()">+ Register hinzufügen</button>
+                    </div>
+                </div>
+                
+                <!-- Accordion: Mitglieder-Daten Import -->
+                <div class="settings-accordion" id="member-import-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📥 Mitglieder-Daten Import</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                            Importiere Mitgliederdaten (Name, Geburtstag, Kontakt, Größen) und ordne sie bestehenden App-Benutzern zu.
+                        </p>
+                        
+                        <div class="input-group">
+                            <label>JSON-Datei auswählen</label>
+                            <input type="file" id="import-file" accept=".json" onchange="previewImport()">
+                        </div>
+                        <div id="import-preview" style="display: none; margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                            <span id="import-count">0</span> Mitglieder gefunden
+                        </div>
+                        <button class="btn btn-primary btn-block" id="import-btn" onclick="importMemberData()" disabled>📥 Importieren</button>
+                        
+                        <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                        
+                        <h4 style="margin-bottom: 0.75rem;">🔗 Zuordnen</h4>
+                        <div class="input-group">
+                            <label>App-Benutzer</label>
+                            <select id="link-member-select">
+                                <option value="">-- Benutzer wählen --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Import-Daten</label>
+                            <select id="link-import-select">
+                                <option value="">-- Import-Daten wählen --</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-success btn-block" onclick="linkMemberData()">🔗 Verknüpfen</button>
+                        
+                        <div id="linked-members-list" style="margin-top: 1rem; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-danger btn-block" style="margin-top: 2rem;" onclick="logout()">🚪 Ausloggen</button>
+            </div>
+            
+            <!-- Event bearbeiten Modal -->
+            <div class="modal-overlay" id="event-edit-modal">
+                <div class="modal">
+                    <h3>Event bearbeiten</h3>
+                    <input type="hidden" id="edit-event-id">
+                    <div class="input-group"><label>Name *</label><input type="text" id="edit-event-name"></div>
+                    <div class="input-group">
+                        <label>Wochenende</label>
+                        <select id="edit-event-week">
+                            <option value="">-- Wochenende wählen --</option>
+                        </select>
+                    </div>
+                    <div class="input-group"><label>Datum</label><input type="date" id="edit-event-date"></div>
+                    <div class="input-group"><label>Ort</label><input type="text" id="edit-event-location"></div>
+                    <div class="input-group"><label>Uhrzeit</label><input type="time" id="edit-event-time"></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeEventEditModal()">Abbrechen</button>
+                        <button class="btn btn-danger" onclick="deleteEventFromModal()">🗑️ Löschen</button>
+                        <button class="btn btn-primary" onclick="saveEventEdit()">💾 Speichern</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Rolle bearbeiten Modal -->
+            <div class="modal-overlay" id="rolle-modal">
+                <div class="modal" style="max-height: 90vh; overflow-y: auto;">
+                    <h3 id="rolle-modal-title">Rolle bearbeiten</h3>
+                    <div class="input-group"><label>Rollenname</label><input type="text" id="rolle-name-input" placeholder="z.B. Registerleiter"></div>
+                    <div class="section-header"><h4>Berechtigungen</h4></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Alle Mitglieder sehen</span><input type="checkbox" id="perm-viewAllMembers"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Alle Anwesenheiten sehen</span><input type="checkbox" id="perm-viewAllAttendance"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Eigenes Register sehen</span><input type="checkbox" id="perm-viewOwnRegister"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>📊 Alle Register-Zusagen sehen</span><input type="checkbox" id="perm-viewAllRegisterZusagen"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>📈 Bus/Register-Statistik sehen</span><input type="checkbox" id="perm-viewStats"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>👤 Mitglieder-Details sehen (Geb., Tel.)</span><input type="checkbox" id="perm-viewMemberDetails"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>📢 Wichtige News schreiben</span><input type="checkbox" id="perm-postNews"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Events verwalten</span><input type="checkbox" id="perm-manageEvents"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Mitglieder verwalten</span><input type="checkbox" id="perm-manageMembers"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Rollen verwalten</span><input type="checkbox" id="perm-manageRoles"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Anzeigen verwalten</span><input type="checkbox" id="perm-manageAnzeigen"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>Forum-Bereiche erstellen</span><input type="checkbox" id="perm-createForumCategories"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>🔧 Admin-Rechte</span><input type="checkbox" id="perm-isAdmin"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>🎵 Registerleiter</span><input type="checkbox" id="perm-isRegisterleiter"><span class="toggle-slider"></span></label></div>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" onclick="closeRolleModal()">Abbrechen</button>
+                        <button class="btn btn-primary" onclick="saveRolle()">Speichern</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PIN Vergessen Modal -->
+    <div class="modal-overlay" id="pin-forgotten-modal">
+        <div class="modal">
+            <h3>🔑 PIN vergessen</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                Gib deinen Namen ein. Ein Admin wird dir einen temporären PIN vergeben.
+            </p>
+            <div class="input-group">
+                <label>Dein Name</label>
+                <input type="text" id="pin-forgot-name" placeholder="Max Mustermann">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closePinForgottenModal()">Abbrechen</button>
+                <button class="btn btn-primary" onclick="requestPinReset()">Anfrage senden</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- PIN ändern Modal (nach temporärem Login) -->
+    <div class="modal-overlay" id="must-change-pin-modal">
+        <div class="modal">
+            <h3>🔐 Neuen PIN festlegen</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                Du hast einen temporären PIN erhalten. Bitte lege jetzt einen neuen PIN fest.
+            </p>
+            <div class="input-group">
+                <label>Neuer PIN (mind. 4 Zeichen)</label>
+                <input type="password" id="new-pin-required" placeholder="****" minlength="4">
+            </div>
+            <div class="input-group">
+                <label>PIN wiederholen</label>
+                <input type="password" id="new-pin-required-confirm" placeholder="****">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-primary btn-block" onclick="saveRequiredNewPin()">PIN speichern</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Comment Modal -->
+    <div class="modal-overlay" id="comment-modal">
+        <div class="modal">
+            <h3>Grund für Abwesenheit</h3>
+            <div class="input-group"><textarea id="comment-input" rows="3" placeholder="Optional: Warum kannst du nicht?"></textarea></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">Abbrechen</button>
+                <button class="btn btn-primary" onclick="saveAbsent()">Speichern</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Teilnehmer Modal (Wer ist dabei?) -->
+    <div class="modal-overlay" id="participants-modal">
+        <div class="modal" style="max-width: 500px; max-height: 80vh; overflow-y: auto;">
+            <h3 id="participants-modal-title">Wer ist dabei?</h3>
+            <div id="participants-loading" style="text-align: center; padding: 2rem;">
+                <div class="loading-spinner"></div>
+                <p>Lade Teilnehmer...</p>
+            </div>
+            <div id="participants-content" class="hidden">
+                <div id="participants-stats" style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1rem;"></div>
+                <div class="section-header"><h4>Nach Register</h4></div>
+                <div id="participants-by-register"></div>
+                <div class="section-header" style="margin-top: 1rem;"><h4>Teilnehmerliste</h4></div>
+                <div id="participants-list" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="btn btn-secondary btn-block" onclick="closeParticipantsModal()">Schließen</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Register-Zusagen Übersicht Modal -->
+    <div class="modal-overlay" id="all-register-zusagen-modal">
+        <div class="modal" style="max-width: 600px; max-height: 85vh; overflow-y: auto;">
+            <h3>📊 Register-Zusagen Übersicht</h3>
+            <div class="input-group" style="margin-bottom: 1rem;">
+                <label>Woche auswählen</label>
+                <select id="register-zusagen-week-select" onchange="loadAllRegisterZusagen()">
+                    <!-- Dynamisch befüllt -->
+                </select>
+            </div>
+            <div id="all-register-zusagen-loading" style="text-align: center; padding: 2rem;" class="hidden">
+                <div class="spinner"></div>
+                <p style="margin-top: 1rem; color: var(--text-secondary);">Lade Daten...</p>
+            </div>
+            <div id="all-register-zusagen-content"></div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="btn btn-secondary btn-block" onclick="closeAllRegisterZusagenModal()">Schließen</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Member Detail Modal -->
+    <div class="modal-overlay" id="member-detail-modal">
+        <div class="modal" style="max-width: 500px;">
+            <h3 id="member-detail-name">Mitglied</h3>
+            <div style="margin: 0.5rem 0;">
+                <span class="tag bus" id="member-detail-bus"></span>
+                <span class="tag register" id="member-detail-register"></span>
+            </div>
+            <div class="stats-grid" style="margin: 1rem 0;">
+                <div class="stat-card"><div class="number" id="member-detail-present">0</div><div class="label">Dabei</div></div>
+                <div class="stat-card"><div class="number" id="member-detail-absent">0</div><div class="label">Gefehlt</div></div>
+            </div>
+            <div class="stat-card" style="text-align: center; margin-bottom: 1rem;">
+                <div class="number" id="member-detail-rate">0%</div><div class="label">Anwesenheitsquote</div>
+            </div>
+            <!-- Bus/Register Zuweisung für Admin -->
+            <div id="member-bus-register-section" class="hidden">
+                <div class="section-header"><h4 style="font-size: 1rem; color: var(--accent-blue); margin-bottom: 0.5rem;">🚌🎵 Bus & Register zuweisen</h4></div>
+                <div class="input-group">
+                    <label>Bus</label>
+                    <select id="member-detail-bus-select">
+                        <option value="">-- Kein Bus --</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Register</label>
+                    <select id="member-detail-register-select">
+                        <option value="">-- Kein Register --</option>
+                    </select>
+                </div>
+                <button class="btn btn-success btn-block" onclick="saveMemberBusRegister()">💾 Bus/Register speichern</button>
+                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem; text-align: center;">Alle alten Einträge werden auch aktualisiert!</p>
+            </div>
+            <div class="input-group" id="member-role-group" style="margin-top: 1rem;">
+                <label>Rolle ändern</label>
+                <select id="member-detail-role">
+                    <!-- Wird dynamisch gefüllt -->
+                </select>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="saveMemberRole()" id="save-role-btn">Rolle speichern</button>
+            <div class="section-header"><h2>Auftritte</h2></div>
+            <div id="member-detail-events" style="max-height: 300px; overflow-y: auto;"></div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="btn btn-secondary" onclick="closeMemberDetail()">Schließen</button>
+                <button class="btn btn-primary" onclick="exportMemberPDF()">📄 PDF</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bus Selection Modal (Global) -->
+    <div class="modal-overlay" id="bus-select-modal">
+        <div class="modal">
+            <h3>🚌 Bus auswählen</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Wähle deinen Bus für diesen Auftritt:</p>
+            <div class="input-group">
+                <select id="checkin-bus-select"><option value="">-- Kein Bus --</option></select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="cancelBusSelect()">Abbrechen</button>
+                <button class="btn btn-primary" onclick="confirmBusSelect()">Einchecken</button>
+            </div>
+        </div>
+    </div>
+    
+    <button class="config-btn" id="config-btn" onclick="showConfig()">🔄</button>
+    <div class="toast" id="toast"></div>
 
-// Notification Click Event
-self.addEventListener('notificationclick', event => {
-    console.log('Notification clicked:', event);
-    
-    event.notification.close();
-    
-    if (event.action === 'close') {
-        return;
-    }
-    
-    const urlToOpen = event.notification.data?.url || '/app.html';
-    
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-            .then(clientList => {
-                // Prüfe ob App bereits offen ist
-                for (const client of clientList) {
-                    if (client.url.includes(self.location.origin) && 'focus' in client) {
-                        return client.focus();
+    <script>
+        // ============================================================
+        // CONFIG & STATE
+        // ============================================================
+        const DEFAULT_API_URL = 'https://demo.christoph-hoher.workers.dev/';
+        let API_URL = localStorage.getItem('lkt-api-url') || DEFAULT_API_URL;
+        let currentUser = JSON.parse(localStorage.getItem('lkt-user') || 'null');
+        let isOfflineMode = localStorage.getItem('lkt-offline') === 'true';
+        
+        // Data cache
+        let eventsData = [];
+        let attendanceData = {};
+        let commentsData = {};
+        let statsData = {};
+        let busseData = [];
+        let registerData = [];
+        let zusagenData = {};
+        let allMembersData = [];
+        let allMemberStats = {};
+        let allAnzeigenData = [];
+        let brettPostsData = [];
+        let kommentareData = {};
+        
+        // App Settings
+        let appSettings = {
+            qrScannerEnabled: true,
+            strafenEnabled: true
+        };
+        
+        let currentAbsentEventId = null;
+        let currentAttendanceEventId = null;
+        let attendanceByMember = {};
+        let zusagenByMember = {};
+        let pendingScanEventId = null;
+        let currentDetailMember = null;
+        
+        let offlineQueue = JSON.parse(localStorage.getItem('lkt-offline-queue') || '[]');
+        
+        // ============================================================
+        // LOKALER CACHE
+        // ============================================================
+        const CACHE_KEY = 'lkt-data-cache';
+        const CACHE_EXPIRY = 5 * 60 * 1000; // 5 Minuten
+        
+        function saveToCache(key, data) {
+            try {
+                const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+                cache[key] = { data: data, timestamp: Date.now() };
+                localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+            } catch (e) { console.log('Cache save error:', e); }
+        }
+        
+        function getFromCache(key) {
+            try {
+                const cache = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
+                if (cache[key] && (Date.now() - cache[key].timestamp) < CACHE_EXPIRY) {
+                    return cache[key].data;
+                }
+            } catch (e) { console.log('Cache read error:', e); }
+            return null;
+        }
+        
+        function loadCachedData() {
+            // Sofort lokale Daten laden
+            const cached = {
+                events: getFromCache('events'),
+                busse: getFromCache('busse'),
+                register: getFromCache('register'),
+                members: getFromCache('members'),
+                stats: getFromCache('stats'),
+                settings: getFromCache('settings'),
+                brett: getFromCache('brett'),
+                forumBereiche: getFromCache('forumBereiche')
+            };
+            
+            if (cached.events) eventsData = cached.events;
+            if (cached.busse) busseData = cached.busse;
+            if (cached.register) registerData = cached.register;
+            if (cached.members) allMembersData = cached.members;
+            if (cached.stats) statsData = cached.stats;
+            if (cached.settings) {
+                // Konsistente Prüfung: nur 'false' String ist false, alles andere true
+                appSettings.qrScannerEnabled = cached.settings.qrScannerEnabled !== 'false' && cached.settings.qrScannerEnabled !== false;
+                appSettings.strafenEnabled = cached.settings.strafenEnabled !== 'false' && cached.settings.strafenEnabled !== false;
+                console.log('loadCachedData settings:', cached.settings, '-> qr:', appSettings.qrScannerEnabled, 'strafen:', appSettings.strafenEnabled);
+            }
+            if (cached.brett) brettPostsData = cached.brett;
+            if (cached.forumBereiche) forumBereicheData = cached.forumBereiche;
+            
+            return cached;
+        }
+        
+        // ============================================================
+        // INITIALIZATION
+        // ============================================================
+        document.addEventListener('DOMContentLoaded', init);
+        
+        function init() {
+            updateOnlineStatus();
+            window.addEventListener('online', onOnline);
+            window.addEventListener('offline', updateOnlineStatus);
+            
+            if (currentUser) {
+                showMainApp();
+            } else {
+                hideLoading();
+                showStep(2);
+            }
+        }
+        
+        function onOnline() {
+            updateOnlineStatus();
+            if (offlineQueue.length > 0 && navigator.onLine) syncOfflineQueue();
+        }
+        
+        function updateOnlineStatus() {
+            const banner = document.getElementById('offline-banner');
+            if (!navigator.onLine) {
+                banner.classList.add('show');
+                banner.innerHTML = '⚠️ Offline - ' + offlineQueue.length + ' Aktion(en) warten';
+            } else {
+                if (offlineQueue.length > 0) {
+                    banner.classList.add('show');
+                    banner.innerHTML = '🔄 Synchronisiere...';
+                    banner.style.background = '#4ade80';
+                } else {
+                    banner.classList.remove('show');
+                    banner.style.background = '#ef4444';
+                }
+            }
+        }
+        
+        function hideLoading() { document.getElementById('loading').classList.add('hidden'); }
+        function showLoading() { document.getElementById('loading').classList.remove('hidden'); }
+        
+        // ============================================================
+        // OFFLINE QUEUE
+        // ============================================================
+        function addToOfflineQueue(actionData) {
+            const queueItem = {
+                id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                timestamp: Date.now(),
+                data: actionData
+            };
+            offlineQueue.push(queueItem);
+            localStorage.setItem('lkt-offline-queue', JSON.stringify(offlineQueue));
+            updateOnlineStatus();
+        }
+        
+        async function syncOfflineQueue() {
+            if (offlineQueue.length === 0 || !navigator.onLine) return;
+            showToast('Synchronisiere ' + offlineQueue.length + ' Aktion(en)...');
+            const queue = [...offlineQueue];
+            let successCount = 0;
+            for (const item of queue) {
+                try {
+                    const result = await apiPost(item.data);
+                    if (!result.error) {
+                        offlineQueue = offlineQueue.filter(q => q.id !== item.id);
+                        successCount++;
+                    }
+                } catch (e) { console.error('Sync error:', e); }
+            }
+            localStorage.setItem('lkt-offline-queue', JSON.stringify(offlineQueue));
+            updateOnlineStatus();
+            if (successCount > 0) { showToast('✓ ' + successCount + ' synchronisiert!'); loadData(); }
+        }
+        
+        // ============================================================
+        // API FUNCTIONS
+        // ============================================================
+        const API_KEY = 'LKT-dvMbjra7kYAkkDJVsAKBCOyPV9E9xhWbxYwROtHb';
+        
+        async function apiGet(action, params = {}) {
+            let url = API_URL + '?action=' + action + '&apiKey=' + encodeURIComponent(API_KEY);
+            for (const [key, value] of Object.entries(params)) {
+                url += '&' + key + '=' + encodeURIComponent(value);
+            }
+            const response = await fetch(url);
+            return await response.json();
+        }
+        
+        async function apiPost(data) {
+            data.apiKey = API_KEY;
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify(data)
+            });
+            return await response.json();
+        }
+        
+        // ============================================================
+        // SETUP & LOGIN
+        // ============================================================
+        function showStep(step) {
+            for (let i = 1; i <= 5; i++) document.getElementById('setup-step-' + i).classList.add('hidden');
+            document.getElementById('setup-step-' + step).classList.remove('hidden');
+        }
+        
+        function selectRole(role) { showStep(role === 'member' ? 3 : 5); }
+        
+        async function registerMember() {
+            const name = document.getElementById('register-name-input').value.trim();
+            const pin = document.getElementById('register-pin-input').value.trim();
+            if (!name || !pin || pin.length < 4) { showToast('Name und PIN (mind. 4 Zeichen) erforderlich', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'requestRegistration', name: name, pin: pin });
+                if (result.error) { showToast(result.error, true); hideLoading(); return; }
+                showToast('Anfrage gesendet! Warte auf Freischaltung durch Admin.', false);
+                // Zurück zum Login-Screen
+                showStep(3);
+                document.getElementById('register-name-input').value = '';
+                document.getElementById('register-pin-input').value = '';
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function loginMember() {
+            const name = document.getElementById('member-name-input').value.trim();
+            const pin = document.getElementById('member-pin-input').value.trim();
+            if (!name || !pin || pin.length < 4) { showToast('Name und PIN (mind. 4 Zeichen) erforderlich', true); return; }
+            showLoading();
+            try {
+                // Sichere PIN-Verifizierung über Worker (PIN wird nie zurückgegeben)
+                const result = await apiPost({ action: 'verifyMemberPin', name: name, pin: pin });
+                if (result.error) { 
+                    showToast(result.error, true); 
+                    hideLoading(); 
+                    return; 
+                }
+                
+                const permissions = result.permissions || {};
+                const rollenId = result.rollenId || 'ROLE-MITGLIED';
+                
+                // Admin-Rollen bekommen gericht-View, andere member-View
+                if (permissions.isAdmin || permissions.canManageMembers || permissions.canManageEvents) {
+                    currentUser = { 
+                        role: 'gericht', name: result.name,
+                        rollenId: rollenId, permissions: permissions,
+                        busId: result.busId, registerId: result.registerId, memberId: result.memberId,
+                        mustChangePin: result.mustChangePin || false
+                    };
+                } else {
+                    currentUser = { 
+                        role: 'member', name: result.name,
+                        rollenId: rollenId, permissions: permissions,
+                        busId: result.busId, registerId: result.registerId, memberId: result.memberId,
+                        mustChangePin: result.mustChangePin || false
+                    };
+                }
+                
+                localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                showToast('Willkommen, ' + result.name + '!');
+                showMainApp();
+                
+                // Prüfe ob PIN geändert werden muss
+                if (currentUser.mustChangePin) {
+                    setTimeout(() => checkMustChangePin(), 500);
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); hideLoading(); }
+        }
+        
+        async function loginGericht() {
+            const pin = document.getElementById('gericht-pin-input').value.trim();
+            if (!pin) { showToast('PIN erforderlich', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'loginAdmin', pin: pin });
+                if (result.error) {
+                    showToast(result.error, true);
+                    hideLoading();
+                    return;
+                }
+                
+                if (result.success) {
+                    currentUser = { 
+                        role: 'gericht', 
+                        name: result.name || 'Admin', 
+                        rollenId: result.rollenId || 'ROLE-ADMIN', 
+                        permissions: result.permissions || {
+                            isAdmin: true, canViewAllMembers: true, canViewAllAttendance: true,
+                            canViewOwnRegister: true, canManageEvents: true, canManageMembers: true,
+                            canManageRoles: true, canManageAnzeigen: true, canCreateForumCategories: true
+                        }
+                    };
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    showToast('Willkommen, ' + currentUser.name + '!');
+                    showMainApp();
+                } else {
+                    showToast('Login fehlgeschlagen', true);
+                }
+            } catch (e) {
+                showToast('Verbindungsfehler', true);
+            }
+            hideLoading();
+        }
+        
+        function logout() {
+            if (!confirm('Wirklich ausloggen?')) return;
+            localStorage.removeItem('lkt-user');
+            currentUser = null;
+            location.reload();
+        }
+        
+        // ============================================================
+        // MAIN APP
+        // ============================================================
+        async function showMainApp() {
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('main-app').classList.remove('hidden');
+            attendanceData = {};
+            commentsData = {};
+            
+            const userInfo = document.getElementById('user-info');
+            const permissions = currentUser.permissions || {};
+            
+            if (currentUser.role === 'gericht') {
+                // Admin/Verwaltung-Ansicht
+                if (permissions.isAdmin) {
+                    userInfo.textContent = '🔧 ' + currentUser.name + ' (Admin)';
+                    userInfo.classList.add('gericht');
+                } else {
+                    userInfo.textContent = '👔 ' + currentUser.name;
+                    userInfo.classList.add('chef');
+                }
+                document.getElementById('member-nav').classList.add('hidden');
+                document.getElementById('gericht-nav').classList.remove('hidden');
+                document.getElementById('member-screens').classList.add('hidden');
+                document.getElementById('gericht-screens').classList.remove('hidden');
+                document.getElementById('config-btn').textContent = '🔄'; // Auch für Admin: Aktualisierung
+                
+                // Tabs basierend auf Berechtigungen ein/ausblenden
+                updateUIPermissions(permissions);
+                
+                initGerichtNav();
+            } else {
+                document.getElementById('config-btn').textContent = '🔄';
+                userInfo.textContent = '👤 ' + currentUser.name;
+                
+                // Berechtigungen auf UI anwenden
+                updateUIPermissions(permissions);
+                
+                initMemberNav();
+                eventsData = getOfflineEvents();
+                loadLocalAttendance();
+                renderMemberView();
+            }
+            
+            hideLoading();
+            loadData();
+        }
+        
+        function initMemberNav() {
+            const tabs = document.querySelectorAll('#member-nav .nav-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.querySelectorAll('#member-screens .screen').forEach(s => s.classList.remove('active'));
+                    document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                    
+                    // Scanner-Handling bei Tab-Wechsel
+                    if (tab.dataset.tab === 'scanner') {
+                        if (scannerRunning) {
+                            resumeScanner();
+                        } else {
+                            // Automatisch starten beim ersten Besuch
+                            setTimeout(initScanner, 300);
+                        }
+                    } else {
+                        pauseScanner();
+                    }
+                });
+            });
+        }
+        
+        // Aktualisiere UI basierend auf Berechtigungen
+        function updateUIPermissions(permissions) {
+            if (!permissions) permissions = currentUser?.permissions || {};
+            
+            // === GERICHT TABS ===
+            // Anzeigen-Tab
+            const anzeigenTab = document.querySelector('#gericht-nav [data-tab="anzeigen"]');
+            if (anzeigenTab) {
+                if (permissions.canManageAnzeigen || permissions.isAdmin) {
+                    anzeigenTab.classList.remove('hidden');
+                } else {
+                    anzeigenTab.classList.add('hidden');
+                }
+            }
+            
+            // Settings-Tab (nur für Admins oder Rollen-Verwalter)
+            const settingsTab = document.querySelector('#gericht-nav [data-tab="settings"]');
+            if (settingsTab) {
+                if (permissions.isAdmin || permissions.canManageRoles || permissions.canManageMembers) {
+                    settingsTab.classList.remove('hidden');
+                } else {
+                    settingsTab.classList.add('hidden');
+                }
+            }
+            
+            // === MEMBER BEREICH ===
+            // Register-Zusagen Button
+            const allRegZusagenSection = document.getElementById('all-register-zusagen-section');
+            if (allRegZusagenSection) {
+                if (permissions.canViewAllRegisterZusagen || permissions.isAdmin) {
+                    allRegZusagenSection.classList.remove('hidden');
+                } else {
+                    allRegZusagenSection.classList.add('hidden');
+                }
+            }
+            
+            // Scanner-Tab (wenn QR-Scanner aktiviert ist)
+            const scannerTab = document.querySelector('#member-nav [data-tab="scanner"]');
+            if (scannerTab && typeof appSettings !== 'undefined') {
+                if (appSettings.qrScannerEnabled) {
+                    scannerTab.classList.remove('hidden');
+                } else {
+                    scannerTab.classList.add('hidden');
+                }
+            }
+            
+            // Anzeige-Tab für Member
+            const memberAnzeigeTab = document.querySelector('#member-nav [data-tab="anzeige"]');
+            if (memberAnzeigeTab && typeof appSettings !== 'undefined') {
+                if (appSettings.strafenEnabled) {
+                    memberAnzeigeTab.classList.remove('hidden');
+                } else {
+                    memberAnzeigeTab.classList.add('hidden');
+                }
+            }
+            
+            // Komplette Stats für berechtigte User
+            const fullStatsSection = document.getElementById('full-stats-section');
+            if (fullStatsSection) {
+                if (permissions.canViewStats || permissions.isAdmin) {
+                    fullStatsSection.classList.remove('hidden');
+                } else {
+                    fullStatsSection.classList.add('hidden');
+                }
+            }
+        }
+        
+        function initGerichtNav() {
+            const tabs = document.querySelectorAll('#gericht-nav .nav-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.querySelectorAll('#gericht-screens .screen').forEach(s => s.classList.remove('active'));
+                    document.getElementById(tab.dataset.tab + '-tab').classList.add('active');
+                });
+            });
+        }
+        
+        // ============================================================
+        // DATA LOADING
+        // ============================================================
+        async function loadData() {
+            try {
+                // SOFORT: Cached Daten laden und anzeigen
+                loadCachedData();
+                if (eventsData.length === 0) eventsData = getOfflineEvents();
+                
+                // Sofort UI rendern mit gecachten Daten
+                if (currentUser.role === 'member') {
+                    loadLocalAttendance();
+                    renderMemberView();
+                    populateProfileSelects();
+                    populateRegisterEventSelect();
+                    renderForumTabs();
+                    renderBrettPostsFromCache();
+                } else {
+                    renderGerichtView();
+                }
+                
+                // DANN: Im Hintergrund frische Daten laden
+                if (navigator.onLine && !isOfflineMode) {
+                    loadFreshDataInBackground();
+                }
+            } catch (e) {
+                console.error('loadData error:', e);
+                if (eventsData.length === 0) eventsData = getOfflineEvents();
+            }
+        }
+        
+        async function loadFreshDataInBackground() {
+            try {
+                // ALLE Daten parallel laden für maximale Performance
+                const isGericht = currentUser.role !== 'member';
+                
+                const promises = [
+                    apiGet('getSettings').catch(e => null),
+                    apiGet('getBusse').catch(e => null),
+                    apiGet('getRegister').catch(e => null),
+                    apiGet('getEvents').catch(e => null),
+                    apiGet('getMemberAttendance', { name: currentUser.name }).catch(e => null),
+                    apiGet('getZusagen').catch(e => null),
+                    isGericht ? apiGet('getStats').catch(e => null) : Promise.resolve(null)
+                ];
+                
+                const [settingsResult, busseResult, registerResult, eventsResult, attResult, zusagenResult, statsResult] = await Promise.all(promises);
+                
+                // Settings
+                if (settingsResult?.settings) {
+                    appSettings.qrScannerEnabled = settingsResult.settings.qrScannerEnabled !== 'false' && settingsResult.settings.qrScannerEnabled !== false;
+                    appSettings.strafenEnabled = settingsResult.settings.strafenEnabled !== 'false' && settingsResult.settings.strafenEnabled !== false;
+                    saveToCache('settings', settingsResult.settings);
+                }
+                
+                // Busse
+                if (busseResult?.busse) {
+                    busseData = busseResult.busse;
+                    saveToCache('busse', busseData);
+                }
+                
+                // Register
+                if (registerResult?.register) {
+                    registerData = registerResult.register;
+                    saveToCache('register', registerData);
+                }
+                
+                // Events
+                if (eventsResult?.events) {
+                    eventsData = eventsResult.events;
+                    saveToCache('events', eventsData);
+                }
+                
+                // Attendance
+                if (attResult && !attResult.error) {
+                    attendanceData = attResult.attendance || {};
+                    commentsData = attResult.comments || {};
+                    currentUser.busId = attResult.busId;
+                    currentUser.registerId = attResult.registerId;
+                    
+                    // Berechtigungen aktualisieren (falls vom Server gesendet)
+                    if (attResult.permissions) {
+                        currentUser.permissions = attResult.permissions;
+                        // UI basierend auf neuen Berechtigungen aktualisieren
+                        updateUIPermissions(currentUser.permissions);
+                    }
+                    
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    if (currentUser.role === 'member') saveLocalAttendance();
+                }
+                
+                // Zusagen
+                if (zusagenResult?.zusagen) {
+                    zusagenData = zusagenResult.zusagen;
+                }
+                
+                // Stats (nur Gericht)
+                if (statsResult && !statsResult.error) {
+                    statsData = statsResult;
+                    saveToCache('stats', statsData);
+                }
+                
+                // UI aktualisieren
+                applyAppSettings();
+                
+                if (currentUser.role === 'member') {
+                    if (offlineQueue.length > 0) syncOfflineQueue();
+                    renderMemberView();
+                    populateProfileSelects();
+                    populateRegisterEventSelect();
+                    
+                    // News und Forum im Hintergrund laden
+                    loadNews().catch(e => {});
+                    loadForumBereiche().catch(e => {});
+                    initPushNotifications();
+                } else {
+                    // Gericht: UI updaten und zusätzliche Daten laden
+                    populateAttendanceEventSelect();
+                    populateQREventSelect();
+                    populateFilters();
+                    populateWeekendSelect();
+                    renderBusseList();
+                    renderRegisterList();
+                    renderEventsManageList();
+                    renderMyEventsForGericht();
+                    
+                    // Stats aktualisieren
+                    document.getElementById('total-members').textContent = statsData.totalMembers || allMembersData.length || 0;
+                    document.getElementById('total-events').textContent = statsData.totalEvents || 0;
+                    document.getElementById('total-checkins').textContent = statsData.totalAttended || 0;
+                    document.getElementById('total-anzeigen').textContent = statsData.totalAnzeigen || 0;
+                    document.getElementById('overall-rate').textContent = (statsData.attendanceRate || 0) + '%';
+                    
+                    // Gericht-spezifische Daten laden (Members, Anzeigen, etc.)
+                    loadGerichtData();
+                }
+            } catch (e) {
+                console.error('Background load error:', e);
+            }
+        }
+        
+        function renderBrettPostsFromCache() {
+            // Zeige cached Brett-Posts sofort an
+            if (brettPostsData.length > 0) {
+                renderBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+            }
+        }
+        
+        function applyAppSettings() {
+            const permissions = currentUser ? currentUser.permissions || {} : {};
+            
+            // Scanner Tab anzeigen/verstecken (für Mitglieder)
+            const scannerNav = document.getElementById('nav-scanner');
+            if (scannerNav) {
+                if (appSettings.qrScannerEnabled) {
+                    scannerNav.classList.remove('hidden');
+                } else {
+                    scannerNav.classList.add('hidden');
+                }
+            }
+            
+            // QR-Codes Tab anzeigen/verstecken (für Gericht/Admin)
+            const qrCodesNav = document.getElementById('nav-qr-codes');
+            if (qrCodesNav) {
+                if (appSettings.qrScannerEnabled) {
+                    qrCodesNav.classList.remove('hidden');
+                } else {
+                    qrCodesNav.classList.add('hidden');
+                }
+            }
+            
+            // Anzeige Tab anzeigen/verstecken
+            const anzeigeNav = document.getElementById('nav-anzeige');
+            if (anzeigeNav) {
+                if (appSettings.strafenEnabled) {
+                    anzeigeNav.classList.remove('hidden');
+                } else {
+                    anzeigeNav.classList.add('hidden');
+                }
+            }
+            
+            // Anzeigen-Tab in Gericht Navigation
+            const gerichtAnzeigenNav = document.querySelector('#gericht-nav [data-tab="anzeigen"]');
+            if (gerichtAnzeigenNav) {
+                if (appSettings.strafenEnabled && permissions.canManageAnzeigen) {
+                    gerichtAnzeigenNav.classList.remove('hidden');
+                } else {
+                    gerichtAnzeigenNav.classList.add('hidden');
+                }
+            }
+            
+            // API-URL Section nur für Admin
+            const apiUrlSection = document.getElementById('api-url-section');
+            if (apiUrlSection) {
+                if (permissions.isAdmin) {
+                    apiUrlSection.classList.remove('hidden');
+                    document.getElementById('setting-api-url').value = API_URL;
+                } else {
+                    apiUrlSection.classList.add('hidden');
+                }
+            }
+            
+            // App-Modi Section nur für Admin
+            const appModiSection = document.getElementById('app-modi-section');
+            if (appModiSection) {
+                if (permissions.isAdmin) {
+                    appModiSection.classList.remove('hidden');
+                } else {
+                    appModiSection.classList.add('hidden');
+                }
+            }
+            
+            // Register-Anfragen Section nur für Admin
+            const anfragenSection = document.getElementById('register-anfragen-section');
+            if (anfragenSection) {
+                if (permissions.isAdmin || permissions.canManageMembers) {
+                    anfragenSection.classList.remove('hidden');
+                } else {
+                    anfragenSection.classList.add('hidden');
+                }
+            }
+            
+            // Rollen Section nur für Admin
+            const rollenSection = document.getElementById('rollen-section');
+            if (rollenSection) {
+                if (permissions.isAdmin || permissions.canManageRoles) {
+                    rollenSection.classList.remove('hidden');
+                } else {
+                    rollenSection.classList.add('hidden');
+                }
+            }
+            
+            // Forum-Bereiche Section nur für Admin
+            const forumBereicheSection = document.getElementById('forum-bereiche-section');
+            if (forumBereicheSection) {
+                if (permissions.isAdmin || permissions.canCreateForumCategories) {
+                    forumBereicheSection.classList.remove('hidden');
+                } else {
+                    forumBereicheSection.classList.add('hidden');
+                }
+            }
+            
+            // Settings-Checkboxen aktualisieren
+            const qrCheckbox = document.getElementById('setting-qr-scanner');
+            const strafenCheckbox = document.getElementById('setting-strafen');
+            
+            // Konvertiere zu Boolean - prüfe auf alle möglichen true-Werte
+            const qrEnabled = appSettings.qrScannerEnabled === true || appSettings.qrScannerEnabled === 'true' || appSettings.qrScannerEnabled === 1;
+            const strafenEnabled = appSettings.strafenEnabled === true || appSettings.strafenEnabled === 'true' || appSettings.strafenEnabled === 1;
+            
+            console.log('applyAppSettings - qrEnabled:', qrEnabled, 'raw:', appSettings.qrScannerEnabled);
+            console.log('applyAppSettings - strafenEnabled:', strafenEnabled, 'raw:', appSettings.strafenEnabled);
+            
+            if (qrCheckbox) qrCheckbox.checked = qrEnabled;
+            if (strafenCheckbox) strafenCheckbox.checked = strafenEnabled;
+        }
+        
+        function saveApiUrl() {
+            const newUrl = document.getElementById('setting-api-url').value.trim();
+            if (newUrl) {
+                API_URL = newUrl;
+                localStorage.setItem('lkt-api-url', API_URL);
+                showToast('API URL gespeichert!');
+            } else {
+                API_URL = DEFAULT_API_URL;
+                localStorage.removeItem('lkt-api-url');
+                showToast('API URL zurückgesetzt');
+            }
+        }
+        
+        async function changeAdminPin() {
+            const newPin = document.getElementById('new-admin-pin').value.trim();
+            const confirmPin = document.getElementById('new-admin-pin-confirm').value.trim();
+            
+            if (!newPin || newPin.length < 4) {
+                showToast('PIN muss mindestens 4 Zeichen haben', true);
+                return;
+            }
+            
+            if (newPin !== confirmPin) {
+                showToast('PINs stimmen nicht überein', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'changeAdminPin', newPin: newPin });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('Admin-PIN erfolgreich geändert!');
+                    document.getElementById('new-admin-pin').value = '';
+                    document.getElementById('new-admin-pin-confirm').value = '';
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // MITGLIEDER-IMPORT FUNKTIONEN
+        // ============================================================
+        let importData = [];
+        
+        function previewImport() {
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    importData = JSON.parse(e.target.result);
+                    document.getElementById('import-preview').style.display = 'block';
+                    document.getElementById('import-count').textContent = importData.length;
+                    document.getElementById('import-btn').disabled = false;
+                } catch (err) {
+                    showToast('Ungültige JSON-Datei', true);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        async function importMemberData() {
+            if (importData.length === 0) {
+                showToast('Keine Daten zum Importieren', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'importMemberData', memberData: importData });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    loadImportedMembers();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function loadImportedMembers() {
+            try {
+                const result = await apiGet('getImportedMembers');
+                const imported = result.importedMembers || [];
+                
+                // Fülle Import-Dropdown
+                const importSelect = document.getElementById('link-import-select');
+                if (importSelect) {
+                    let html = '<option value="">-- Import-Daten wählen --</option>';
+                    imported.filter(i => !i.isLinked).forEach(i => {
+                        html += '<option value="' + i.fullName + '">' + i.fullName;
+                        if (i.spitzname) html += ' (' + i.spitzname + ')';
+                        html += '</option>';
+                    });
+                    importSelect.innerHTML = html;
+                }
+                
+                // Fülle Benutzer-Dropdown
+                const memberSelect = document.getElementById('link-member-select');
+                if (memberSelect) {
+                    let html = '<option value="">-- Benutzer wählen --</option>';
+                    membersData.filter(m => !m.linkedImportId).forEach(m => {
+                        html += '<option value="' + m.id + '">' + m.name + '</option>';
+                    });
+                    memberSelect.innerHTML = html;
+                }
+                
+                // Zeige bereits verknüpfte
+                const linkedList = document.getElementById('linked-members-list');
+                if (linkedList) {
+                    const linked = imported.filter(i => i.isLinked);
+                    if (linked.length === 0) {
+                        linkedList.innerHTML = '<div class="empty-state" style="font-size: 0.85rem;">Noch keine Verknüpfungen</div>';
+                    } else {
+                        let html = '<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">' + linked.length + ' verknüpft:</div>';
+                        linked.forEach(l => {
+                            html += '<div style="font-size: 0.85rem; padding: 0.25rem 0;">✓ ' + l.fullName + ' → ' + l.linkedTo + '</div>';
+                        });
+                        linkedList.innerHTML = html;
                     }
                 }
-                // Sonst neues Fenster öffnen
-                if (clients.openWindow) {
-                    return clients.openWindow(urlToOpen);
+            } catch (e) {
+                console.log('Error loading imported members:', e);
+            }
+        }
+        
+        async function linkMemberData() {
+            const memberId = document.getElementById('link-member-select').value;
+            const importName = document.getElementById('link-import-select').value;
+            
+            if (!memberId || !importName) {
+                showToast('Bitte Benutzer und Import-Daten auswählen', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'linkMemberData', memberId: memberId, importFullName: importName });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    await refreshData();
+                    loadImportedMembers();
                 }
-            })
-    );
-});
-
-// Background Sync (für Offline-Unterstützung)
-self.addEventListener('sync', event => {
-    if (event.tag === 'lkt-sync') {
-        console.log('Background sync triggered');
-        // Hier könnte Offline-Queue synchronisiert werden
-    }
-});
-
-// Periodic Background Sync (für Event-Erinnerungen)
-self.addEventListener('periodicsync', event => {
-    if (event.tag === 'lkt-event-check') {
-        console.log('Periodic sync: checking events');
-        // Event-Check hier implementieren
-    }
-});
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function saveAppSettings() {
+            const qrCheckbox = document.getElementById('setting-qr-scanner');
+            const strafenCheckbox = document.getElementById('setting-strafen');
+            
+            if (!qrCheckbox || !strafenCheckbox) {
+                console.error('Checkboxen nicht gefunden!');
+                return;
+            }
+            
+            const qrEnabled = qrCheckbox.checked;
+            const strafenEnabled = strafenCheckbox.checked;
+            
+            console.log('saveAppSettings - qrEnabled:', qrEnabled, 'strafenEnabled:', strafenEnabled);
+            
+            // Sofort lokal setzen
+            appSettings.qrScannerEnabled = qrEnabled;
+            appSettings.strafenEnabled = strafenEnabled;
+            
+            try {
+                const result = await apiPost({
+                    action: 'updateSettings',
+                    settings: {
+                        qrScannerEnabled: qrEnabled ? 'true' : 'false',
+                        strafenEnabled: strafenEnabled ? 'true' : 'false'
+                    }
+                });
+                console.log('saveAppSettings result:', result);
+                
+                // Cache aktualisieren
+                saveToCache('settings', { 
+                    qrScannerEnabled: qrEnabled ? 'true' : 'false', 
+                    strafenEnabled: strafenEnabled ? 'true' : 'false' 
+                });
+                
+                applyAppSettings();
+                showToast('Einstellungen gespeichert!');
+            } catch (e) {
+                console.error('saveAppSettings error:', e);
+                showToast('Fehler beim Speichern', true);
+            }
+        }
+        
+        async function refreshData() { showLoading(); await loadData(); hideLoading(); showToast('Daten aktualisiert'); }
+        
+        // ============================================================
+        // MEMBER VIEW
+        // ============================================================
+        function renderMemberView() {
+            renderEventsList();
+            updateMemberStats();
+            document.getElementById('profile-name').textContent = currentUser.name;
+        }
+        
+        function renderEventsList() {
+            const container = document.getElementById('events-list');
+            let html = '';
+            let currentWeek = '';
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            // Gruppiere Events nach Woche
+            const weekGroups = {};
+            sortedEvents.forEach(event => {
+                const week = event.week || 'Sonstige';
+                if (!weekGroups[week]) weekGroups[week] = [];
+                weekGroups[week].push(event);
+            });
+            
+            // Rendere jede Woche
+            Object.keys(weekGroups).forEach(week => {
+                const weekEvents = weekGroups[week];
+                
+                // Prüfe ob alle Events dieser Woche vergangen sind
+                const allPast = weekEvents.every(event => {
+                    if (!event.date) return false;
+                    const [d, m, y] = event.date.split('.');
+                    const eventDate = new Date(y, m - 1, d);
+                    return eventDate < today;
+                });
+                
+                // Zähle Statistik für diese Woche
+                let attended = 0, absent = 0, pending = 0;
+                weekEvents.forEach(event => {
+                    const status = attendanceData[event.id];
+                    if (status === true) attended++;
+                    else if (status === false) absent++;
+                    else pending++;
+                });
+                
+                const weekId = 'week-' + week.replace(/\s+/g, '-');
+                
+                if (allPast) {
+                    // Vergangene Woche - eingeklappt mit Zusammenfassung
+                    html += '<div class="week-collapsible">';
+                    html += '<div class="week-header collapsed" onclick="toggleWeek(\'' + weekId + '\')" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center;">';
+                    html += '<span>' + week + ' <span style="font-size: 0.8rem; opacity: 0.7;">▶</span></span>';
+                    html += '<span style="font-size: 0.85rem;">';
+                    if (attended > 0) html += '<span style="color: var(--accent-green);">✓' + attended + '</span> ';
+                    if (absent > 0) html += '<span style="color: var(--accent-red);">✗' + absent + '</span>';
+                    html += '</span>';
+                    html += '</div>';
+                    html += '<div class="week-content hidden" id="' + weekId + '">';
+                } else {
+                    // Aktuelle/Zukünftige Woche - offen
+                    html += '<div class="week-header">' + week + '</div>';
+                    html += '<div class="week-content">';
+                }
+                
+                weekEvents.forEach(event => {
+                    const status = attendanceData[event.id];
+                    const isAttended = status === true;
+                    const isAbsent = status === false;
+                    const hasZugesagt = zusagenData[event.id] && zusagenData[event.id][currentUser.name];
+                    
+                    // Zähle Zusagen für diesen Event
+                    const zusagenCount = zusagenData[event.id] ? Object.keys(zusagenData[event.id]).filter(k => zusagenData[event.id][k]).length : 0;
+                    
+                    let cardClass = 'card event-card';
+                    if (isAttended) cardClass += ' attended';
+                    else if (isAbsent) cardClass += ' absent';
+                    else if (hasZugesagt) cardClass += ' planned';
+                    
+                    html += '<div class="' + cardClass + '">';
+                    html += '<div class="date">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
+                    html += '<div class="title">' + event.name + '</div>';
+                    html += '<div class="location">📍 ' + (event.location || 'TBA') + '</div>';
+                    
+                    // Zeige Zusagen-Anzahl - klickbar um Teilnehmer zu sehen
+                    if (zusagenCount > 0) {
+                        html += '<div style="margin: 0.5rem 0;"><a href="#" onclick="showEventParticipants(\'' + event.id + '\'); return false;" style="color: var(--accent-blue); text-decoration: none;">👥 ' + zusagenCount + ' haben zugesagt</a></div>';
+                    }
+                    
+                    if (isAttended) html += '<span class="status present">✓ Teilgenommen</span>';
+                    if (isAbsent) html += '<span class="status absent">✗ Nicht dabei</span>';
+                    if (hasZugesagt && !isAttended && !isAbsent) html += '<span class="status planned">✓ Zugesagt</span>';
+                    
+                    html += '<div class="actions">';
+                    if (!isAttended && !isAbsent) {
+                        // Wenn Scanner deaktiviert: "Ich bin dabei" Button zeigen
+                        if (!appSettings.qrScannerEnabled) {
+                            html += '<button class="btn btn-primary" onclick="directCheckIn(\'' + event.id + '\')">✓ Ich bin dabei</button>';
+                        } else {
+                            // Zusagen-Button nur wenn QR aktiv
+                            html += '<button class="btn zusage-btn ' + (hasZugesagt ? 'active' : '') + '" onclick="toggleZusage(\'' + event.id + '\')">' + (hasZugesagt ? '✓ Zugesagt' : '+ Zusagen') + '</button>';
+                        }
+                        html += '<button class="btn btn-danger" onclick="markAbsentEvent(\'' + event.id + '\')">✗ Absagen</button>';
+                    } else {
+                        html += '<button class="btn btn-secondary" onclick="resetEvent(\'' + event.id + '\')">↩ Zurücksetzen</button>';
+                    }
+                    html += '</div></div>';
+                });
+                
+                html += '</div>'; // week-content
+                if (allPast) html += '</div>'; // week-collapsible
+            });
+            
+            container.innerHTML = html || '<div class="empty-state">Keine Auftritte</div>';
+        }
+        
+        function toggleWeek(weekId) {
+            const content = document.getElementById(weekId);
+            const header = content.previousElementSibling;
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                header.querySelector('span span').textContent = '▼';
+            } else {
+                content.classList.add('hidden');
+                header.querySelector('span span').textContent = '▶';
+            }
+        }
+        
+        async function directCheckIn(eventId) {
+            console.log('directCheckIn called:', eventId, 'busId:', currentUser.busId);
+            // Direkt einchecken ohne QR-Code
+            if (currentUser.busId) {
+                showLoading();
+                try {
+                    await checkInEvent(eventId, currentUser.busId);
+                } catch(e) {
+                    console.error('directCheckIn error:', e);
+                    showToast('Fehler beim Einchecken', true);
+                }
+                hideLoading();
+            } else {
+                // Bus-Auswahl zeigen
+                console.log('Showing bus select modal');
+                pendingScanEventId = eventId;
+                const busSelect = document.getElementById('checkin-bus-select');
+                if (busSelect) {
+                    busSelect.value = '';
+                }
+                const modal = document.getElementById('bus-select-modal');
+                if (modal) {
+                    modal.classList.add('active');
+                } else {
+                    console.error('Bus select modal not found!');
+                    showToast('Modal nicht gefunden', true);
+                }
+            }
+        }
+        
+        function updateMemberStats() {
+            // Nur vergangene Events zählen (bis heute)
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            
+            const pastEvents = eventsData.filter(event => {
+                if (!event.date) return false;
+                // Datum parsen (dd.MM.yyyy)
+                const parts = event.date.split('.');
+                if (parts.length === 3) {
+                    const eventDate = new Date(parts[2], parts[1] - 1, parts[0]);
+                    return eventDate <= today;
+                }
+                return false;
+            });
+            
+            let attended = 0;
+            let absent = 0;
+            
+            pastEvents.forEach(event => {
+                const status = attendanceData[event.id];
+                if (status === true) {
+                    attended++;
+                } else {
+                    // Nicht eingecheckt = abwesend (egal ob abgesagt oder gar nichts)
+                    absent++;
+                }
+            });
+            
+            const total = attended + absent;
+            const rate = total > 0 ? Math.round(attended / total * 100) : 0;
+            document.getElementById('my-attended').textContent = attended;
+            document.getElementById('my-missed').textContent = absent;
+            document.getElementById('my-rate').textContent = rate + '%';
+            
+            // Auch Gruppen-Stats laden
+            loadMemberGroupStats();
+        }
+        
+        async function loadMemberGroupStats() {
+            // Register-Stats
+            const registerNameEl = document.getElementById('my-register-name');
+            const registerRateEl = document.getElementById('my-register-rate');
+            const registerDetailEl = document.getElementById('my-register-detail');
+            
+            let allRegisterStats = [];
+            let allBusStats = [];
+            
+            if (currentUser.registerId) {
+                const register = registerData.find(r => r.id === currentUser.registerId);
+                registerNameEl.textContent = register ? '🎵 ' + register.name : 'Mein Register';
+                
+                try {
+                    const result = await apiGet('getRegisterStats');
+                    allRegisterStats = result.registerStats || [];
+                    const regStats = allRegisterStats.find(r => r.id === currentUser.registerId);
+                    if (regStats) {
+                        const total = regStats.attended + regStats.absent;
+                        const rate = total > 0 ? Math.round(regStats.attended / total * 100) : 0;
+                        registerRateEl.textContent = rate + '%';
+                        registerDetailEl.textContent = regStats.attended + ' dabei / ' + total + ' gesamt';
+                    } else {
+                        registerRateEl.textContent = '-';
+                        registerDetailEl.textContent = 'Keine Daten';
+                    }
+                } catch (e) {
+                    registerRateEl.textContent = '-';
+                    registerDetailEl.textContent = 'Fehler beim Laden';
+                }
+            } else {
+                registerNameEl.textContent = 'Kein Register ausgewählt';
+                registerRateEl.textContent = '-';
+                registerDetailEl.textContent = 'Wähle ein Register in deinem Profil';
+            }
+            
+            // Bus-Stats
+            const busNameEl = document.getElementById('my-bus-name');
+            const busRateEl = document.getElementById('my-bus-rate');
+            const busDetailEl = document.getElementById('my-bus-detail');
+            
+            if (currentUser.busId) {
+                const bus = busseData.find(b => b.id === currentUser.busId);
+                busNameEl.textContent = bus ? '🚌 ' + bus.name : 'Mein Bus';
+                
+                try {
+                    const result = await apiGet('getBusStats');
+                    allBusStats = result.busStats || [];
+                    const busStats = allBusStats.find(b => b.id === currentUser.busId);
+                    if (busStats) {
+                        const total = busStats.attended + busStats.absent;
+                        const rate = total > 0 ? Math.round(busStats.attended / total * 100) : 0;
+                        busRateEl.textContent = rate + '%';
+                        busDetailEl.textContent = busStats.attended + ' dabei / ' + total + ' gesamt';
+                    } else {
+                        busRateEl.textContent = '-';
+                        busDetailEl.textContent = 'Keine Daten';
+                    }
+                } catch (e) {
+                    busRateEl.textContent = '-';
+                    busDetailEl.textContent = 'Fehler beim Laden';
+                }
+            } else {
+                busNameEl.textContent = 'Kein fester Bus';
+                busRateEl.textContent = '-';
+                busDetailEl.textContent = 'Du fährst flexibel mit';
+            }
+            
+            // Wenn User Berechtigung hat: Komplette Listen rendern
+            const permissions = currentUser.permissions || {};
+            if (permissions.canViewStats || permissions.isAdmin) {
+                renderMemberBusStatsList(allBusStats);
+                renderMemberRegisterStatsList(allRegisterStats);
+            }
+        }
+        
+        // Rendere Bus-Statistik Liste für Member
+        function renderMemberBusStatsList(busStats) {
+            const container = document.getElementById('member-bus-stats-list');
+            if (!container) return;
+            
+            if (!busStats || busStats.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Bus-Statistik verfügbar</div>';
+                return;
+            }
+            
+            let html = '';
+            busStats.forEach(bus => {
+                const total = bus.attended + bus.absent;
+                const rate = total > 0 ? Math.round(bus.attended / total * 100) : 0;
+                const color = rate >= 80 ? 'var(--accent-green)' : rate >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                
+                html += '<div class="card" style="margin-bottom: 0.75rem;">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div>';
+                html += '<strong>🚌 ' + bus.name + '</strong> <span style="color: var(--text-secondary); font-size: 0.85rem;">(' + (bus.memberCount || 0) + ' Mitglieder)</span>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + bus.attended + ' | ✗ ' + bus.absent + '</div>';
+                html += '</div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: ' + color + ';">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // Rendere Register-Statistik Liste für Member
+        function renderMemberRegisterStatsList(registerStats) {
+            const container = document.getElementById('member-register-stats-list');
+            if (!container) return;
+            
+            if (!registerStats || registerStats.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Register-Statistik verfügbar</div>';
+                return;
+            }
+            
+            let html = '';
+            registerStats.forEach(reg => {
+                const total = reg.attended + reg.absent;
+                const rate = total > 0 ? Math.round(reg.attended / total * 100) : 0;
+                const color = rate >= 80 ? 'var(--accent-green)' : rate >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                
+                html += '<div class="card" style="margin-bottom: 0.75rem;">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div>';
+                html += '<strong>🎵 ' + reg.name + '</strong> <span style="color: var(--text-secondary); font-size: 0.85rem;">(' + (reg.memberCount || 0) + ' Mitglieder)</span>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + reg.attended + ' | ✗ ' + reg.absent + '</div>';
+                html += '</div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: ' + color + ';">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // "Meine Auftritte" für Admin/Chef - gleiche Funktionalität wie für Mitglieder
+        function renderMyEventsForGericht() {
+            const container = document.getElementById('my-events-list');
+            if (!container) return;
+            
+            let html = '';
+            let currentWeek = '';
+            
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            sortedEvents.forEach(event => {
+                if (event.week !== currentWeek) {
+                    currentWeek = event.week;
+                    html += '<div class="week-header">' + currentWeek + '</div>';
+                }
+                
+                const status = attendanceData[event.id];
+                const isAttended = status === true;
+                const isAbsent = status === false;
+                const hasZugesagt = zusagenData[event.id] && zusagenData[event.id][currentUser.name];
+                
+                let cardClass = 'card event-card';
+                if (isAttended) cardClass += ' attended';
+                else if (isAbsent) cardClass += ' absent';
+                else if (hasZugesagt) cardClass += ' planned';
+                
+                html += '<div class="' + cardClass + '">';
+                html += '<div class="date">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
+                html += '<div class="title">' + event.name + '</div>';
+                html += '<div class="location">📍 ' + (event.location || 'TBA') + '</div>';
+                
+                if (isAttended) html += '<span class="status present">✓ Teilgenommen</span>';
+                if (isAbsent) html += '<span class="status absent">✗ Nicht dabei</span>';
+                if (hasZugesagt && !isAttended && !isAbsent) html += '<span class="status planned">✓ Zugesagt</span>';
+                
+                html += '<div class="actions">';
+                if (!isAttended && !isAbsent) {
+                    // Für Admin/Chef: immer "Ich bin dabei" Button, da sie selbst einchecken können
+                    html += '<button class="btn btn-primary" onclick="directCheckInGericht(\'' + event.id + '\')">✓ Ich bin dabei</button>';
+                    html += '<button class="btn zusage-btn ' + (hasZugesagt ? 'active' : '') + '" onclick="toggleZusage(\'' + event.id + '\')">' + (hasZugesagt ? '✓ Zugesagt' : '+ Zusagen') + '</button>';
+                    html += '<button class="btn btn-danger" onclick="markAbsentEventGericht(\'' + event.id + '\')">✗ Absagen</button>';
+                } else {
+                    html += '<button class="btn btn-secondary" onclick="resetEventGericht(\'' + event.id + '\')">↩ Zurücksetzen</button>';
+                }
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html || '<div class="empty-state">Keine Auftritte</div>';
+        }
+        
+        async function directCheckInGericht(eventId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: currentUser.busId || '' });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    attendanceData[eventId] = true;
+                    showToast('✓ Eingecheckt!');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function markAbsentEventGericht(eventId) {
+            const comment = prompt('Grund für Abwesenheit (optional):');
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment || '' });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    attendanceData[eventId] = false;
+                    showToast('Abwesenheit vermerkt');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function resetEventGericht(eventId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'resetAttendance', name: currentUser.name, eventId: eventId });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    delete attendanceData[eventId];
+                    showToast('Status zurückgesetzt');
+                    renderMyEventsForGericht();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // WER IST DABEI? (Teilnehmer-Modal für alle Mitglieder)
+        // ============================================================
+        async function showEventParticipants(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            document.getElementById('participants-modal-title').textContent = event.name + ' - Wer ist dabei?';
+            document.getElementById('participants-loading').classList.remove('hidden');
+            document.getElementById('participants-content').classList.add('hidden');
+            document.getElementById('participants-modal').classList.add('active');
+            
+            try {
+                // Lade Zusagen für dieses Event (aus lokalem Cache oder API)
+                let zusagen = zusagenData[eventId] || {};
+                
+                // Parallel laden: Attendance, Members, Register
+                const [attendanceResult, membersResult, registerResult] = await Promise.all([
+                    apiGet('getEventAttendance', { eventId: eventId }).catch(e => ({ attendance: {} })),
+                    allMembersData.length === 0 ? apiGet('getMembers').catch(e => ({ members: [] })) : Promise.resolve({ members: allMembersData }),
+                    registerData.length === 0 ? apiGet('getRegister').catch(e => ({ register: [] })) : Promise.resolve({ register: registerData })
+                ]);
+                
+                const eventAttendance = attendanceResult.attendance || {};
+                
+                // Aktualisiere globale Daten
+                if (membersResult.members && membersResult.members.length > 0) {
+                    allMembersData = membersResult.members;
+                }
+                if (registerResult.register && registerResult.register.length > 0) {
+                    registerData = registerResult.register;
+                }
+                
+                renderParticipantsModal(event, zusagen, eventAttendance);
+                
+            } catch (e) {
+                console.error('Participants error:', e);
+                showToast('Fehler beim Laden', true);
+            }
+            
+            document.getElementById('participants-loading').classList.add('hidden');
+            document.getElementById('participants-content').classList.remove('hidden');
+        }
+        
+        function renderParticipantsModal(event, zusagen, eventAttendance) {
+            // Kategorisieren
+            const zugesagt = [];
+            const anwesend = [];
+            const abgesagt = [];
+            
+            // Prüfe ob User alle sehen darf oder nur eigenes Register
+            const permissions = currentUser.permissions || {};
+            const canViewAll = permissions.isAdmin || permissions.canViewAllMembers || permissions.canViewAllAttendance;
+            const userRegisterId = currentUser.registerId;
+            
+            // Aus Zusagen
+            for (const name in zusagen) {
+                if (zusagen[name]) {
+                    // Filter nach Register wenn nötig
+                    if (!canViewAll) {
+                        const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                        if (member && member.registerId !== userRegisterId) continue;
+                    }
+                    zugesagt.push(name);
+                }
+            }
+            
+            // Aus Attendance (überschreibt Zusagen)
+            for (const name in eventAttendance) {
+                // Filter nach Register wenn nötig
+                if (!canViewAll) {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    if (member && member.registerId !== userRegisterId) continue;
+                }
+                
+                if (eventAttendance[name] === true) {
+                    anwesend.push(name);
+                    // Entferne aus zugesagt wenn anwesend
+                    const idx = zugesagt.indexOf(name);
+                    if (idx > -1) zugesagt.splice(idx, 1);
+                } else if (eventAttendance[name] === false) {
+                    abgesagt.push(name);
+                    const idx = zugesagt.indexOf(name);
+                    if (idx > -1) zugesagt.splice(idx, 1);
+                }
+            }
+            
+            // Header mit Register-Info wenn gefiltert
+            const registerName = userRegisterId ? (registerData.find(r => r.id === userRegisterId)?.name || '') : '';
+            const filterInfo = !canViewAll && registerName ? ' <small style="color: var(--text-secondary);">(' + registerName + ')</small>' : '';
+            
+            // Stats
+            document.getElementById('participants-stats').innerHTML = 
+                '<span style="color: var(--accent-green);">✓ ' + anwesend.length + ' dabei</span>' +
+                '<span style="color: var(--accent-blue);">📅 ' + zugesagt.length + ' zugesagt</span>' +
+                '<span style="color: var(--accent-red);">✗ ' + abgesagt.length + ' abgesagt</span>' +
+                filterInfo;
+            
+            // Register-Gruppierung nur für Admins anzeigen
+            const byRegisterDiv = document.getElementById('participants-by-register');
+            if (canViewAll) {
+                // Nach Register gruppieren
+                const byRegister = {};
+                registerData.forEach(r => { byRegister[r.id] = { name: r.name, members: [] }; });
+                byRegister['none'] = { name: 'Ohne Register', members: [] };
+                
+                [...anwesend, ...zugesagt].forEach(name => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    const regId = member?.registerId || 'none';
+                    if (byRegister[regId]) {
+                        const status = anwesend.includes(name) ? 'anwesend' : 'zugesagt';
+                        byRegister[regId].members.push({ name, status });
+                    }
+                });
+                
+                let regHtml = '';
+                Object.values(byRegister).filter(r => r.members.length > 0).forEach(r => {
+                    regHtml += '<div style="background: var(--bg-input); padding: 0.5rem; border-radius: 8px; margin-bottom: 0.5rem;">';
+                    regHtml += '<strong>' + r.name + '</strong>: ' + r.members.length + ' Personen';
+                    regHtml += '</div>';
+                });
+                byRegisterDiv.innerHTML = regHtml || '<p style="color: var(--text-secondary);">Keine Daten</p>';
+                byRegisterDiv.parentElement.style.display = 'block';
+            } else {
+                // Verstecke Register-Gruppierung für normale Mitglieder
+                byRegisterDiv.parentElement.style.display = 'none';
+            }
+            
+            // Teilnehmerliste
+            let listHtml = '';
+            
+            anwesend.forEach(name => {
+                listHtml += '<div class="member-attendance-row anwesend">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-green);">✓ dabei</div>';
+                listHtml += '</div>';
+            });
+            
+            zugesagt.forEach(name => {
+                listHtml += '<div class="member-attendance-row" style="border-left: 3px solid var(--accent-blue);">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-blue);">📅 zugesagt</div>';
+                listHtml += '</div>';
+            });
+            
+            abgesagt.forEach(name => {
+                listHtml += '<div class="member-attendance-row abwesend">';
+                listHtml += '<div><strong>' + name + '</strong></div>';
+                listHtml += '<div style="color: var(--accent-red);">✗ abgesagt</div>';
+                listHtml += '</div>';
+            });
+            
+            document.getElementById('participants-list').innerHTML = listHtml || '<p style="color: var(--text-secondary);">Noch keine Anmeldungen</p>';
+        }
+        
+        function closeParticipantsModal() {
+            document.getElementById('participants-modal').classList.remove('active');
+        }
+        
+        // ============================================================
+        // ALLE REGISTER-ZUSAGEN ÜBERSICHT
+        // ============================================================
+        function showAllRegisterZusagenModal() {
+            // Wochen-Select befüllen
+            const select = document.getElementById('register-zusagen-week-select');
+            const weeks = [...new Set(eventsData.map(e => e.week).filter(w => w))];
+            let html = '';
+            weeks.forEach(w => {
+                html += '<option value="' + w + '">' + w + '</option>';
+            });
+            select.innerHTML = html;
+            
+            document.getElementById('all-register-zusagen-modal').classList.add('active');
+            loadAllRegisterZusagen();
+        }
+        
+        function closeAllRegisterZusagenModal() {
+            document.getElementById('all-register-zusagen-modal').classList.remove('active');
+        }
+        
+        async function loadAllRegisterZusagen() {
+            const week = document.getElementById('register-zusagen-week-select').value;
+            if (!week) return;
+            
+            const loadingEl = document.getElementById('all-register-zusagen-loading');
+            const contentEl = document.getElementById('all-register-zusagen-content');
+            
+            loadingEl.classList.remove('hidden');
+            contentEl.innerHTML = '';
+            
+            try {
+                const result = await apiGet('getAllRegisterZusagen', { week: week });
+                loadingEl.classList.add('hidden');
+                
+                if (result.error) {
+                    contentEl.innerHTML = '<div class="empty-state">Fehler: ' + result.error + '</div>';
+                    return;
+                }
+                
+                if (!result.register || result.register.length === 0) {
+                    contentEl.innerHTML = '<div class="empty-state">Keine Register vorhanden</div>';
+                    return;
+                }
+                
+                // Events der Woche als Header
+                let html = '<div style="margin-bottom: 1rem; padding: 0.5rem; background: var(--bg-dark); border-radius: 8px; text-align: center;">';
+                html += '<strong style="color: var(--accent-yellow);">' + week + '</strong>';
+                if (result.events && result.events.length > 0) {
+                    html += '<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">';
+                    html += result.events.map(e => e.name + ' (' + (e.date || '') + ')').join(' | ');
+                    html += '</div>';
+                }
+                html += '</div>';
+                
+                // Pro Register ein Balken pro Event
+                result.register.forEach(reg => {
+                    html += '<div class="card" style="margin-bottom: 0.75rem;">';
+                    html += '<div style="font-weight: 700; color: var(--accent-purple); margin-bottom: 0.5rem;">🎵 ' + reg.registerName + ' <span style="font-size: 0.8rem; color: var(--text-secondary);">(' + reg.memberCount + ' Mitglieder)</span></div>';
+                    
+                    if (reg.events && reg.events.length > 0) {
+                        reg.events.forEach(evt => {
+                            const percent = evt.percent || 0;
+                            const color = percent >= 80 ? 'var(--accent-green)' : percent >= 50 ? 'var(--accent-yellow)' : 'var(--accent-red)';
+                            
+                            html += '<div style="margin-bottom: 0.5rem;">';
+                            html += '<div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.25rem;">';
+                            html += '<span>' + evt.eventName + '</span>';
+                            html += '<span style="color: ' + color + '; font-weight: 700;">' + evt.zugesagt + '/' + evt.total + ' (' + percent + '%)</span>';
+                            html += '</div>';
+                            html += '<div style="background: var(--bg-dark); border-radius: 4px; height: 12px; overflow: hidden;">';
+                            html += '<div style="background: ' + color + '; height: 100%; width: ' + percent + '%; transition: width 0.3s;"></div>';
+                            html += '</div>';
+                            html += '</div>';
+                        });
+                    } else {
+                        html += '<div style="font-size: 0.8rem; color: var(--text-secondary);">Keine Events in dieser Woche</div>';
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                contentEl.innerHTML = html;
+                
+            } catch (e) {
+                loadingEl.classList.add('hidden');
+                contentEl.innerHTML = '<div class="empty-state">Fehler beim Laden: ' + e.message + '</div>';
+            }
+        }
+        
+        // ============================================================
+        // ZUSAGEN
+        // ============================================================
+        async function toggleZusage(eventId) {
+            const current = zusagenData[eventId] && zusagenData[eventId][currentUser.name];
+            const newValue = !current;
+            
+            if (!zusagenData[eventId]) zusagenData[eventId] = {};
+            zusagenData[eventId][currentUser.name] = newValue;
+            renderEventsList();
+            
+            if (navigator.onLine && !isOfflineMode) {
+                try {
+                    await apiPost({ action: 'setZusage', name: currentUser.name, eventId: eventId, zugesagt: newValue });
+                } catch (e) { console.error('Zusage error:', e); }
+            }
+        }
+        
+        // ============================================================
+        // REGISTER ZUSAGEN VIEW
+        // ============================================================
+        function populateRegisterEventSelect() {
+            const select = document.getElementById('register-event-select');
+            if (!select) return;
+            let html = '<option value="">-- Auftritt wählen --</option>';
+            eventsData.forEach(e => {
+                html += '<option value="' + e.id + '">' + e.name + ' (' + (e.date || '') + ')</option>';
+            });
+            select.innerHTML = html;
+            
+            // Auch Member Weekend Select befüllen
+            populateMemberWeekendSelect();
+        }
+        
+        function populateMemberWeekendSelect() {
+            const select = document.getElementById('member-weekend-select');
+            if (!select) return;
+            
+            const weeks = [...new Set(eventsData.map(e => e.week).filter(w => w))];
+            let html = '<option value="">-- Wochenende wählen --</option>';
+            weeks.forEach(w => {
+                html += '<option value="' + w + '">' + w + '</option>';
+            });
+            select.innerHTML = html;
+        }
+        
+        async function loadMemberWeekendOverview() {
+            const week = document.getElementById('member-weekend-select').value;
+            const container = document.getElementById('member-weekend-overview');
+            
+            if (!week) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            if (!currentUser.registerId) {
+                container.innerHTML = '<div class="empty-state">Du hast noch kein Register ausgewählt.</div>';
+                return;
+            }
+            
+            const weekEvents = eventsData.filter(e => e.week === week);
+            if (weekEvents.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Auftritte für dieses Wochenende</div>';
+                return;
+            }
+            
+            // Zeige Lade-Status
+            container.innerHTML = '<div class="empty-state">Lade Daten...</div>';
+            
+            // Register-Info
+            const register = registerData.find(r => r.id === currentUser.registerId);
+            const registerName = register ? register.name : 'Mein Register';
+            
+            // Lade Attendance für alle Events parallel
+            try {
+                const promises = weekEvents.map(event => 
+                    apiGet('getRegisterZusagen', { eventId: event.id, registerId: currentUser.registerId })
+                        .then(result => ({ eventId: event.id, result }))
+                        .catch(e => ({ eventId: event.id, result: { members: [], total: 0, zugesagt: 0 } }))
+                );
+                
+                const results = await Promise.all(promises);
+                
+                let html = '<div style="margin-top: 1rem;">';
+                html += '<div style="text-align: center; margin-bottom: 1rem; padding: 0.5rem; background: var(--bg-input); border-radius: 8px;">';
+                html += '<strong style="color: var(--accent-yellow);">🎵 ' + registerName + '</strong>';
+                html += '</div>';
+                
+                // Zusammenfassung
+                let totalMembers = 0;
+                let totalZugesagt = 0;
+                
+                results.forEach(({ eventId, result }) => {
+                    if (result.total) totalMembers = result.total; // Alle haben gleiche Total
+                    totalZugesagt += result.zugesagt || 0;
+                });
+                
+                // Pro Event
+                weekEvents.forEach(event => {
+                    const { result } = results.find(r => r.eventId === event.id) || { result: {} };
+                    const members = result.members || [];
+                    const total = result.total || 0;
+                    const zugesagt = result.zugesagt || 0;
+                    
+                    const zugesagtNames = members.filter(m => m.zugesagt).map(m => m.name);
+                    const nichtZugesagt = members.filter(m => !m.zugesagt).map(m => m.name);
+                    
+                    html += '<div style="background: var(--bg-input); border-radius: 8px; padding: 0.75rem; margin-bottom: 0.75rem;">';
+                    html += '<div style="font-weight: bold; color: var(--text-primary);">' + event.name + '</div>';
+                    html += '<div style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + ' • ' + (event.time || '') + '</div>';
+                    html += '<div style="margin-top: 0.5rem;">';
+                    html += '<span style="color: var(--accent-green);">✓ ' + zugesagt + '</span>';
+                    html += ' / <span>' + total + '</span>';
+                    html += '</div>';
+                    
+                    if (zugesagtNames.length > 0) {
+                        html += '<div style="margin-top: 0.5rem; font-size: 0.85rem;">';
+                        html += '<span style="color: var(--accent-green);">Dabei:</span> ' + zugesagtNames.join(', ');
+                        html += '</div>';
+                    }
+                    
+                    if (nichtZugesagt.length > 0) {
+                        html += '<div style="margin-top: 0.25rem; font-size: 0.85rem;">';
+                        html += '<span style="color: var(--text-secondary);">Offen:</span> ' + nichtZugesagt.join(', ');
+                        html += '</div>';
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (e) {
+                console.error('Member weekend error:', e);
+                container.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+            }
+        }
+        
+        async function loadRegisterZusagen() {
+            const eventId = document.getElementById('register-event-select').value;
+            const infoBox = document.getElementById('register-zusagen-info');
+            const listContainer = document.getElementById('register-members-list');
+            
+            if (!eventId) {
+                infoBox.classList.add('hidden');
+                listContainer.innerHTML = '';
+                return;
+            }
+            
+            if (!currentUser.registerId) {
+                listContainer.innerHTML = '<div class="empty-state">Du hast noch kein Register in deinem Profil ausgewählt.</div>';
+                infoBox.classList.add('hidden');
+                return;
+            }
+            
+            // Finde Register-Name
+            const register = registerData.find(r => r.id === currentUser.registerId);
+            document.getElementById('register-name-display').textContent = register ? '🎵 ' + register.name : 'Mein Register';
+            
+            showLoading();
+            try {
+                const result = await apiGet('getRegisterZusagen', { eventId: eventId, registerId: currentUser.registerId });
+                
+                if (result.error) {
+                    listContainer.innerHTML = '<div class="empty-state">' + result.error + '</div>';
+                    infoBox.classList.add('hidden');
+                } else {
+                    const members = result.members || [];
+                    document.getElementById('register-zusagen-count').textContent = result.zugesagt + ' / ' + result.total + ' haben zugesagt';
+                    infoBox.classList.remove('hidden');
+                    
+                    let html = '';
+                    // Erst die zugesagten
+                    members.filter(m => m.zugesagt).forEach(m => {
+                        html += '<div class="register-member zugesagt"><span>' + m.name + '</span><span class="status">✓</span></div>';
+                    });
+                    // Dann die nicht zugesagten
+                    members.filter(m => !m.zugesagt).forEach(m => {
+                        html += '<div class="register-member nicht-zugesagt"><span>' + m.name + '</span><span class="status">—</span></div>';
+                    });
+                    listContainer.innerHTML = html || '<div class="empty-state">Keine Mitglieder in diesem Register</div>';
+                }
+            } catch (e) {
+                listContainer.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+                infoBox.classList.add('hidden');
+            }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // PROFILE
+        // ============================================================
+        function populateProfileSelects() {
+            const busSelect = document.getElementById('profile-bus');
+            const regSelect = document.getElementById('profile-register');
+            const checkinBusSelect = document.getElementById('checkin-bus-select');
+            
+            busSelect.innerHTML = '<option value="">-- Kein fester Bus --</option>';
+            checkinBusSelect.innerHTML = '<option value="">-- Kein Bus --</option>';
+            busseData.forEach(b => {
+                busSelect.innerHTML += '<option value="' + b.id + '">' + b.name + '</option>';
+                checkinBusSelect.innerHTML += '<option value="' + b.id + '">' + b.name + '</option>';
+            });
+            
+            regSelect.innerHTML = '<option value="">-- Register wählen --</option>';
+            registerData.forEach(r => {
+                regSelect.innerHTML += '<option value="' + r.id + '">' + r.name + '</option>';
+            });
+            
+            if (currentUser.busId) busSelect.value = currentUser.busId;
+            if (currentUser.registerId) regSelect.value = currentUser.registerId;
+            
+            // Persönliche Daten laden
+            loadPersonalData();
+        }
+        
+        async function loadPersonalData() {
+            // Lade Mitgliedsdaten vom Server
+            try {
+                const result = await apiGet('getMemberAttendance', { name: currentUser.name });
+                if (result && !result.error) {
+                    // Fülle Felder
+                    document.getElementById('profile-display-name').textContent = result.name || currentUser.name;
+                    if (result.spitzname) {
+                        document.getElementById('profile-display-spitzname').textContent = '„' + result.spitzname + '"';
+                        document.getElementById('profile-spitzname').value = result.spitzname;
+                    }
+                    if (result.email) document.getElementById('profile-email').value = result.email;
+                    if (result.telefon) document.getElementById('profile-telefon').value = result.telefon;
+                    if (result.geburtstag) document.getElementById('profile-geburtstag').value = result.geburtstag;
+                    if (result.schuhgroesse) document.getElementById('profile-schuhgroesse').value = result.schuhgroesse;
+                    if (result.hosengroesse) document.getElementById('profile-hosengroesse').value = result.hosengroesse;
+                    if (result.hemdengroesse) document.getElementById('profile-hemdengroesse').value = result.hemdengroesse;
+                    if (result.groesseAllgemein) document.getElementById('profile-groesseAllgemein').value = result.groesseAllgemein;
+                }
+            } catch (e) {
+                console.log('Error loading personal data:', e);
+            }
+        }
+        
+        async function saveBusRegister() {
+            const busId = document.getElementById('profile-bus').value;
+            const registerId = document.getElementById('profile-register').value;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'updateMemberProfile', name: currentUser.name, busId: busId, registerId: registerId });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    currentUser.busId = busId;
+                    currentUser.registerId = registerId;
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    showToast('Bus & Register gespeichert!');
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function savePersonalData() {
+            const details = {
+                spitzname: document.getElementById('profile-spitzname').value.trim(),
+                email: document.getElementById('profile-email').value.trim(),
+                telefon: document.getElementById('profile-telefon').value.trim(),
+                geburtstag: document.getElementById('profile-geburtstag').value.trim(),
+                schuhgroesse: document.getElementById('profile-schuhgroesse').value.trim(),
+                hosengroesse: document.getElementById('profile-hosengroesse').value.trim(),
+                hemdengroesse: document.getElementById('profile-hemdengroesse').value.trim(),
+                groesseAllgemein: document.getElementById('profile-groesseAllgemein').value.trim()
+            };
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'updateMemberDetails', 
+                    memberId: currentUser.memberId, 
+                    details: details 
+                });
+                if (result.error) { 
+                    showToast(result.error, true); 
+                } else {
+                    showToast('Persönliche Daten gespeichert!');
+                    // Spitzname aktualisieren
+                    if (details.spitzname) {
+                        document.getElementById('profile-display-spitzname').textContent = '„' + details.spitzname + '"';
+                    }
+                }
+            } catch (e) { 
+                showToast('Fehler: ' + e.message, true); 
+            }
+            hideLoading();
+        }
+        
+        async function changeCredentials() {
+            const newUsername = document.getElementById('new-username').value.trim();
+            const newPin = document.getElementById('new-pin').value;
+            const newPinConfirm = document.getElementById('new-pin-confirm').value;
+            
+            // Validierung
+            if (!newUsername && !newPin) {
+                showToast('Gib einen neuen Benutzernamen oder PIN ein', true);
+                return;
+            }
+            
+            if (newPin && newPin !== newPinConfirm) {
+                showToast('PINs stimmen nicht überein', true);
+                return;
+            }
+            
+            if (newPin && newPin.length < 4) {
+                showToast('PIN muss mindestens 4 Zeichen haben', true);
+                return;
+            }
+            
+            if (!confirm('Möchtest du deine Anmeldedaten wirklich ändern?')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'updateOwnCredentials', 
+                    currentName: currentUser.name,
+                    currentPin: currentUser.pin,
+                    newName: newUsername || null,
+                    newPin: newPin || null
+                });
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    // Aktualisiere lokale Daten
+                    if (result.newName) {
+                        currentUser.name = result.newName;
+                        document.getElementById('profile-name').textContent = result.newName;
+                    }
+                    if (newPin) {
+                        currentUser.pin = newPin;
+                    }
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    
+                    // Felder leeren
+                    document.getElementById('new-username').value = '';
+                    document.getElementById('new-pin').value = '';
+                    document.getElementById('new-pin-confirm').value = '';
+                    
+                    showToast(result.message);
+                }
+            } catch (e) { 
+                showToast('Fehler: ' + e.message, true); 
+            }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // PIN VERGESSEN / RESET
+        // ============================================================
+        function showPinForgottenModal() {
+            document.getElementById('pin-forgot-name').value = document.getElementById('member-name-input').value || '';
+            document.getElementById('pin-forgotten-modal').classList.add('active');
+        }
+        
+        function closePinForgottenModal() {
+            document.getElementById('pin-forgotten-modal').classList.remove('active');
+        }
+        
+        async function requestPinReset() {
+            const name = document.getElementById('pin-forgot-name').value.trim();
+            if (!name) {
+                showToast('Bitte gib deinen Namen ein', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'requestPinReset', name: name });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    closePinForgottenModal();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        // Admin: PIN-Reset Anfragen laden
+        async function loadPinResetRequests() {
+            try {
+                const result = await apiGet('getPinResetRequests');
+                const requests = result.requests || [];
+                
+                const countEl = document.getElementById('pin-reset-count');
+                const listEl = document.getElementById('pin-reset-list');
+                
+                if (countEl) countEl.textContent = requests.length;
+                
+                if (!listEl) return;
+                
+                if (requests.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state">Keine offenen Anfragen</div>';
+                    return;
+                }
+                
+                let html = '';
+                requests.forEach(req => {
+                    const date = new Date(req.requestedAt).toLocaleString('de-DE');
+                    html += '<div class="list-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem;">';
+                    html += '<div style="display: flex; justify-content: space-between; width: 100%;">';
+                    html += '<strong>' + req.memberName + '</strong>';
+                    html += '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + date + '</span>';
+                    html += '</div>';
+                    html += '<div style="display: flex; gap: 0.5rem; width: 100%;">';
+                    html += '<input type="text" id="temp-pin-' + req.id + '" placeholder="Temp. PIN (mind. 4)" style="flex: 1; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-dark); color: var(--text-primary);">';
+                    html += '<button class="btn btn-success" onclick="approvePinReset(\'' + req.id + '\')" style="padding: 0.5rem 1rem;">✓</button>';
+                    html += '<button class="btn btn-danger" onclick="deletePinResetRequest(\'' + req.id + '\')" style="padding: 0.5rem 1rem;">✗</button>';
+                    html += '</div>';
+                    html += '</div>';
+                });
+                listEl.innerHTML = html;
+            } catch (e) {
+                console.log('Error loading pin reset requests:', e);
+            }
+        }
+        
+        async function approvePinReset(requestId) {
+            const tempPin = document.getElementById('temp-pin-' + requestId).value.trim();
+            if (!tempPin || tempPin.length < 4) {
+                showToast('Temporärer PIN muss mindestens 4 Zeichen haben', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'approvePinReset', requestId: requestId, tempPin: tempPin });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    loadPinResetRequests();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function deletePinResetRequest(requestId) {
+            if (!confirm('Anfrage wirklich ablehnen/löschen?')) return;
+            
+            showLoading();
+            try {
+                await apiPost({ action: 'deletePinResetRequest', requestId: requestId });
+                showToast('Anfrage gelöscht');
+                loadPinResetRequests();
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        // Admin: Registrierungsanfragen laden
+        async function loadRegistrationRequests() {
+            try {
+                const result = await apiGet('getRegistrationRequests');
+                const requests = result.requests || [];
+                
+                const countEl = document.getElementById('registration-count');
+                const listEl = document.getElementById('registration-requests-list');
+                
+                if (countEl) countEl.textContent = requests.length;
+                
+                // Total-Anfragen aktualisieren
+                updateTotalAnfragenCount();
+                
+                if (!listEl) return;
+                
+                if (requests.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state">Keine offenen Anfragen</div>';
+                    return;
+                }
+                
+                let html = '';
+                requests.forEach(req => {
+                    const date = new Date(req.requestedAt).toLocaleString('de-DE');
+                    html += '<div class="list-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 0.5rem;">';
+                    html += '<div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">';
+                    html += '<strong style="font-size: 1rem;">' + req.name + '</strong>';
+                    html += '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + date + '</span>';
+                    html += '</div>';
+                    html += '<div style="display: flex; gap: 0.5rem; width: 100%; margin-top: 0.25rem;">';
+                    html += '<button class="btn btn-success" onclick="approveRegistration(\'' + req.id + '\')" style="flex: 1;">✓ Freischalten</button>';
+                    html += '<button class="btn btn-danger" onclick="rejectRegistration(\'' + req.id + '\')" style="flex: 1;">✗ Ablehnen</button>';
+                    html += '</div>';
+                    html += '</div>';
+                });
+                listEl.innerHTML = html;
+            } catch (e) {
+                console.log('Error loading registration requests:', e);
+            }
+        }
+        
+        async function approveRegistration(requestId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'approveRegistration', requestId: requestId });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    loadRegistrationRequests();
+                    await refreshData(); // Mitgliederliste aktualisieren
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function rejectRegistration(requestId) {
+            if (!confirm('Registrierungsanfrage wirklich ablehnen?')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'rejectRegistration', requestId: requestId });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('Anfrage abgelehnt');
+                    loadRegistrationRequests();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        function updateTotalAnfragenCount() {
+            const regCount = parseInt(document.getElementById('registration-count')?.textContent || '0');
+            const anfragenCount = parseInt(document.getElementById('anfragen-count')?.textContent || '0');
+            const pinCount = parseInt(document.getElementById('pin-reset-count')?.textContent || '0');
+            const total = regCount + anfragenCount + pinCount;
+            
+            const totalEl = document.getElementById('total-anfragen-count');
+            if (totalEl) totalEl.textContent = total;
+        }
+        
+        // Nach Login prüfen ob PIN geändert werden muss
+        function checkMustChangePin() {
+            if (currentUser && currentUser.mustChangePin) {
+                document.getElementById('must-change-pin-modal').classList.add('active');
+            }
+        }
+        
+        async function saveRequiredNewPin() {
+            const newPin = document.getElementById('new-pin-required').value;
+            const confirmPin = document.getElementById('new-pin-required-confirm').value;
+            
+            if (!newPin || newPin.length < 4) {
+                showToast('PIN muss mindestens 4 Zeichen haben', true);
+                return;
+            }
+            
+            if (newPin !== confirmPin) {
+                showToast('PINs stimmen nicht überein', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({
+                    action: 'updateOwnCredentials',
+                    currentName: currentUser.name,
+                    currentPin: currentUser.pin,
+                    newPin: newPin
+                });
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    currentUser.pin = newPin;
+                    currentUser.mustChangePin = false;
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    
+                    document.getElementById('must-change-pin-modal').classList.remove('active');
+                    document.getElementById('new-pin-required').value = '';
+                    document.getElementById('new-pin-required-confirm').value = '';
+                    
+                    showToast('Neuer PIN gespeichert!');
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // MEMBER ACTIONS
+        // ============================================================
+        function saveLocalAttendance() {
+            if (!currentUser || !currentUser.name) return;
+            localStorage.setItem('lkt-attendance-' + currentUser.name, JSON.stringify(attendanceData));
+            localStorage.setItem('lkt-comments-' + currentUser.name, JSON.stringify(commentsData));
+        }
+        
+        function loadLocalAttendance() {
+            if (!currentUser || !currentUser.name) return;
+            const local = localStorage.getItem('lkt-attendance-' + currentUser.name);
+            const localComments = localStorage.getItem('lkt-comments-' + currentUser.name);
+            if (local) attendanceData = { ...attendanceData, ...JSON.parse(local) };
+            if (localComments) commentsData = { ...commentsData, ...JSON.parse(localComments) };
+        }
+        
+        function markAbsentEvent(eventId) {
+            currentAbsentEventId = eventId;
+            document.getElementById('comment-input').value = '';
+            document.getElementById('comment-modal').classList.add('active');
+        }
+        
+        function closeModal() {
+            document.getElementById('comment-modal').classList.remove('active');
+            currentAbsentEventId = null;
+        }
+        
+        async function saveAbsent() {
+            if (!currentAbsentEventId) return;
+            const comment = document.getElementById('comment-input').value.trim();
+            const eventId = currentAbsentEventId;
+            closeModal();
+            
+            attendanceData[eventId] = false;
+            commentsData[eventId] = comment;
+            saveLocalAttendance();
+            renderMemberView();
+            
+            if (navigator.onLine && !isOfflineMode) {
+                try {
+                    await apiPost({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
+                    showToast('Als abwesend markiert');
+                } catch (e) {
+                    addToOfflineQueue({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
+                    showToast('📴 Offline gespeichert - wird später synchronisiert');
+                }
+            } else {
+                addToOfflineQueue({ action: 'markAbsent', name: currentUser.name, eventId: eventId, comment: comment });
+                showToast('📴 Offline gespeichert - wird später synchronisiert');
+            }
+        }
+        
+        async function resetEvent(eventId) {
+            if (!confirm('Status zurücksetzen?')) return;
+            delete attendanceData[eventId];
+            delete commentsData[eventId];
+            saveLocalAttendance();
+            renderMemberView();
+            showToast('Zurückgesetzt');
+            
+            if (navigator.onLine && !isOfflineMode) {
+                try { await apiPost({ action: 'resetAttendance', name: currentUser.name, eventId: eventId }); }
+                catch (e) { 
+                    addToOfflineQueue({ action: 'resetAttendance', name: currentUser.name, eventId: eventId }); 
+                    showToast('📴 Wird später synchronisiert');
+                }
+            } else {
+                addToOfflineQueue({ action: 'resetAttendance', name: currentUser.name, eventId: eventId });
+                showToast('📴 Wird später synchronisiert');
+            }
+        }
+        
+        // ============================================================
+        // QR SCANNER
+        // ============================================================
+        let html5QrCode = null;
+        let scannerRunning = false;
+        
+        function initScanner() {
+            // Scanner beim ersten Mal automatisch starten
+            if (!html5QrCode && !scannerRunning) {
+                startScanner();
+            }
+        }
+        
+        function startScanner() {
+            if (scannerRunning) return;
+            
+            document.getElementById('start-scan-btn').classList.add('hidden');
+            document.getElementById('stop-scan-btn').classList.remove('hidden');
+            document.getElementById('scan-success').classList.add('hidden');
+            
+            html5QrCode = new Html5Qrcode("qr-reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess,
+                () => {}
+            ).then(() => {
+                scannerRunning = true;
+            }).catch(err => {
+                console.error('Scanner error:', err);
+                showToast('Kamera-Zugriff fehlgeschlagen', true);
+                stopScanner();
+            });
+        }
+        
+        function stopScanner() {
+            if (html5QrCode && scannerRunning) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                    scannerRunning = false;
+                }).catch(() => {
+                    scannerRunning = false;
+                });
+            }
+            document.getElementById('start-scan-btn').classList.remove('hidden');
+            document.getElementById('stop-scan-btn').classList.add('hidden');
+        }
+        
+        function pauseScanner() {
+            // Scanner nur pausieren, nicht komplett stoppen
+            if (html5QrCode && scannerRunning) {
+                try {
+                    html5QrCode.pause(true);
+                } catch (e) {}
+            }
+        }
+        
+        function resumeScanner() {
+            // Scanner fortsetzen wenn er läuft
+            if (html5QrCode && scannerRunning) {
+                try {
+                    html5QrCode.resume();
+                } catch (e) {}
+            }
+        }
+        
+        async function onScanSuccess(decodedText) {
+            if (decodedText.startsWith('LKT-EVENT:')) {
+                const eventId = decodedText.replace('LKT-EVENT:', '');
+                const event = eventsData.find(e => e.id === eventId);
+                
+                if (event) {
+                    if (attendanceData[eventId] === true) {
+                        showToast('Bereits eingecheckt!', true);
+                        return;
+                    }
+                    
+                    pauseScanner();
+                    
+                    // Check if member has fixed bus
+                    if (currentUser.busId) {
+                        await checkInEvent(eventId, currentUser.busId);
+                        showScanSuccess(event.name);
+                    } else {
+                        pendingScanEventId = eventId;
+                        document.getElementById('checkin-bus-select').value = '';
+                        document.getElementById('bus-select-modal').classList.add('active');
+                    }
+                } else {
+                    showToast('Unbekannter Auftritt', true);
+                }
+            }
+        }
+        
+        function cancelBusSelect() {
+            document.getElementById('bus-select-modal').classList.remove('active');
+            pendingScanEventId = null;
+            resumeScanner();
+        }
+        
+        async function confirmBusSelect() {
+            const busId = document.getElementById('checkin-bus-select').value;
+            const eventId = pendingScanEventId;
+            document.getElementById('bus-select-modal').classList.remove('active');
+            
+            if (eventId) {
+                const event = eventsData.find(e => e.id === eventId);
+                await checkInEvent(eventId, busId);
+                showScanSuccess(event ? event.name : 'Auftritt');
+            }
+            pendingScanEventId = null;
+        }
+        
+        async function checkInEvent(eventId, busId) {
+            attendanceData[eventId] = true;
+            delete commentsData[eventId];
+            saveLocalAttendance();
+            renderMemberView();
+            
+            if (navigator.onLine && !isOfflineMode) {
+                try {
+                    const result = await apiPost({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                    if (result.error) {
+                        showToast('❌ ' + result.error, true);
+                        return;
+                    }
+                    showToast('✓ Eingecheckt!');
+                } catch (e) {
+                    addToOfflineQueue({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                    showToast('📴 Offline gespeichert - wird später synchronisiert');
+                }
+            } else {
+                addToOfflineQueue({ action: 'checkIn', name: currentUser.name, eventId: eventId, busId: busId || '' });
+                showToast('📴 Offline gespeichert - wird später synchronisiert');
+            }
+        }
+        
+        function showScanSuccess(eventName) {
+            document.getElementById('success-text').textContent = eventName + ' - Eingecheckt!';
+            document.getElementById('scan-success').classList.remove('hidden');
+            pauseScanner(); // Nur pausieren
+            
+            setTimeout(() => {
+                document.getElementById('scan-success').classList.add('hidden');
+                document.querySelectorAll('#member-nav .nav-tab').forEach(t => t.classList.remove('active'));
+                document.querySelector('[data-tab="events"]').classList.add('active');
+                document.querySelectorAll('#member-screens .screen').forEach(s => s.classList.remove('active'));
+                document.getElementById('events-tab').classList.add('active');
+            }, 2000);
+        }
+        
+        // ============================================================
+        // ANZEIGEN
+        // ============================================================
+        async function submitAnzeige() {
+            const beschuldigter = document.getElementById('anzeige-beschuldigter').value.trim();
+            const tatbestand = document.getElementById('anzeige-tatbestand').value.trim();
+            const zeugen = document.getElementById('anzeige-zeugen').value.trim();
+            const strafe = document.getElementById('anzeige-strafe').value.trim();
+            
+            if (!beschuldigter || !tatbestand || !strafe) { showToast('Pflichtfelder ausfüllen!', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({
+                    action: 'submitAnzeige', melder: currentUser.name, beschuldigter: beschuldigter,
+                    tatbestand: tatbestand, zeugen: zeugen, strafe: strafe
+                });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    showToast('Anzeige eingereicht!');
+                    document.getElementById('anzeige-beschuldigter').value = '';
+                    document.getElementById('anzeige-tatbestand').value = '';
+                    document.getElementById('anzeige-zeugen').value = '';
+                    document.getElementById('anzeige-strafe').value = '';
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // GERICHT VIEW
+        // ============================================================
+        async function renderGerichtView() {
+            populateAttendanceEventSelect();
+            populateQREventSelect();
+            populateFilters();
+            populateWeekendSelect();
+            renderBusseList();
+            renderRegisterList();
+            renderEventsManageList();
+            renderMyEventsForGericht();
+            
+            // Settings Checkboxen initialisieren
+            applyAppSettings();
+            
+            // Stats anzeigen (aus Cache oder leer)
+            document.getElementById('total-members').textContent = statsData.totalMembers || allMembersData.length || 0;
+            document.getElementById('total-events').textContent = statsData.totalEvents || 0;
+            document.getElementById('total-checkins').textContent = statsData.totalAttended || 0;
+            document.getElementById('total-anzeigen').textContent = statsData.totalAnzeigen || 0;
+            document.getElementById('overall-rate').textContent = (statsData.attendanceRate || 0) + '%';
+            
+            // Members aus Cache anzeigen
+            if (allMembersData.length > 0) {
+                allMemberStats = statsData.memberStats || {};
+                allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
+                renderMembersList(allMembersData);
+                renderRankings(statsData.topAttenders || [], statsData.topAbsent || []);
+            }
+            
+            // Anzeigen aus Cache
+            if (allAnzeigenData.length > 0) {
+                renderAnzeigenList(allAnzeigenData);
+            }
+            
+            // Brett aus Cache
+            renderBrettPostsFromCache();
+        }
+        
+        // Lädt alle Gericht-spezifischen Daten (wird von loadFreshDataInBackground aufgerufen)
+        async function loadGerichtData() {
+            const permissions = currentUser.permissions || {};
+            
+            try {
+                const promises = [
+                    apiGet('getMembers').catch(e => ({ members: [] })),
+                    permissions.canManageAnzeigen && appSettings.strafenEnabled ? apiGet('getAnzeigen').catch(e => ({ anzeigen: [] })) : Promise.resolve(null),
+                    apiGet('getBusStats').catch(e => ({ busStats: [] })),
+                    apiGet('getRegisterStats').catch(e => ({ registerStats: [] }))
+                ];
+                
+                const [membersResult, anzeigeResult, busStatsResult, regStatsResult] = await Promise.all(promises);
+                
+                // Members
+                if (membersResult.members) {
+                    allMembersData = membersResult.members;
+                    saveToCache('members', allMembersData);
+                    allMemberStats = statsData.memberStats || {};
+                    allMembersData.forEach(m => { if (!allMemberStats[m.name]) allMemberStats[m.name] = { attended: 0, absent: 0 }; });
+                    renderMembersList(allMembersData);
+                }
+                
+                // Anzeigen
+                if (anzeigeResult) {
+                    allAnzeigenData = anzeigeResult.anzeigen || [];
+                    renderAnzeigenList(allAnzeigenData);
+                }
+                
+                renderRankings(statsData.topAttenders || [], statsData.topAbsent || []);
+                
+                // Bus & Register Stats
+                if (busStatsResult.busStats) renderBusStats(busStatsResult.busStats);
+                if (regStatsResult.registerStats) renderRegisterStats(regStatsResult.registerStats);
+                
+                // Forum und Rollen im Hintergrund (nicht blockierend)
+                loadNews().catch(e => {});
+                loadForumBereiche().catch(e => {});
+                
+                if (permissions.isAdmin || permissions.canManageRoles) {
+                    loadRollen().catch(e => {});
+                }
+                if (permissions.isAdmin || permissions.canManageMembers) {
+                    loadRegisterAnfragen().catch(e => {});
+                    loadPinResetRequests().catch(e => {});
+                    loadRegistrationRequests().catch(e => {});
+                    loadImportedMembers().catch(e => {});
+                }
+            } catch (e) {
+                console.error('loadGerichtData error:', e);
+            }
+        }
+        
+        function populateFilters() {
+            const regFilter = document.getElementById('att-filter-register');
+            const memberRegFilter = document.getElementById('member-filter-register');
+            const memberBusFilter = document.getElementById('member-filter-bus');
+            const weekFilter = document.getElementById('att-filter-week');
+            
+            let regHtml = '<option value="">Alle Register</option>';
+            registerData.forEach(r => { regHtml += '<option value="' + r.id + '">' + r.name + '</option>'; });
+            regFilter.innerHTML = regHtml;
+            memberRegFilter.innerHTML = regHtml;
+            
+            let busHtml = '<option value="">Alle Busse</option>';
+            busseData.forEach(b => { busHtml += '<option value="' + b.id + '">' + b.name + '</option>'; });
+            memberBusFilter.innerHTML = busHtml;
+            
+            const weeks = [...new Set(eventsData.map(e => e.week))];
+            let weekHtml = '<option value="">Alle Wochenenden</option>';
+            weeks.forEach(w => { weekHtml += '<option value="' + w + '">' + w + '</option>'; });
+            weekFilter.innerHTML = weekHtml;
+        }
+        
+        function populateAttendanceEventSelect() {
+            const select = document.getElementById('attendance-event-select');
+            let html = '<option value="">-- Auftritt wählen --</option>';
+            let currentWeek = '';
+            eventsData.forEach(event => {
+                if (event.week !== currentWeek) {
+                    if (currentWeek !== '') html += '</optgroup>';
+                    currentWeek = event.week;
+                    html += '<optgroup label="' + currentWeek + '">';
+                }
+                html += '<option value="' + event.id + '">' + (event.date || '') + ' - ' + event.name + '</option>';
+            });
+            if (currentWeek !== '') html += '</optgroup>';
+            select.innerHTML = html;
+        }
+        
+        function populateQREventSelect() {
+            const select = document.getElementById('qr-event-select');
+            let html = '<option value="">-- Event wählen --</option>';
+            eventsData.forEach(e => { html += '<option value="' + e.id + '">' + (e.date || '') + ' - ' + e.name + '</option>'; });
+            select.innerHTML = html;
+        }
+        
+        // ============================================================
+        // ATTENDANCE MANAGEMENT
+        // ============================================================
+        async function loadEventAttendance() {
+            const eventId = document.getElementById('attendance-event-select').value;
+            const container = document.getElementById('attendance-table-container');
+            
+            if (!eventId) { container.classList.add('hidden'); return; }
+            
+            currentAttendanceEventId = eventId;
+            container.classList.remove('hidden');
+            document.getElementById('attendance-table').innerHTML = '<div style="text-align: center; padding: 2rem;">Laden...</div>';
+            
+            attendanceByMember = {};
+            geplantByMember = {};
+            
+            try {
+                const result = await apiGet('getEventAttendance', { eventId: eventId });
+                if (result.attendance) attendanceByMember = result.attendance;
+                
+                const geplantResult = await apiGet('getGeplanteTeilnahme', { eventId: eventId });
+                geplantByMember = geplantResult.geplant || {};
+            } catch (e) { console.log('Could not load attendance'); }
+            
+            renderAttendanceTable();
+        }
+        
+        function renderAttendanceTable() {
+            const container = document.getElementById('attendance-table');
+            const regFilter = document.getElementById('att-filter-register').value;
+            
+            let filteredMembers = allMembersData;
+            if (regFilter) filteredMembers = filteredMembers.filter(m => m.registerId === regFilter);
+            
+            let html = '';
+            filteredMembers.forEach(member => {
+                const isPresent = attendanceByMember[member.name] === true;
+                const isAbsent = attendanceByMember[member.name] === false;
+                const isPlanned = geplantByMember[member.name] === true;
+                
+                let tags = '';
+                if (member.busId) {
+                    const bus = busseData.find(b => b.id === member.busId);
+                    if (bus) tags += '<span class="tag bus">' + bus.name + '</span>';
+                }
+                if (member.registerId) {
+                    const reg = registerData.find(r => r.id === member.registerId);
+                    if (reg) tags += '<span class="tag register">' + reg.name + '</span>';
+                }
+                
+                let statusText = '';
+                if (isPlanned && !isPresent && !isAbsent) statusText = '<span style="color: var(--accent-blue); font-size: 0.75rem; margin-left: 0.5rem;">📅 Geplant</span>';
+                
+                html += '<div class="attendance-row">';
+                html += '<div class="member-name">' + member.name + tags + statusText + '</div>';
+                html += '<div class="attendance-buttons">';
+                html += '<button class="att-btn ' + (isPresent ? 'present' : '') + '" onclick="setMemberAttendance(\'' + member.name.replace(/'/g, "\\'") + '\', true)">✓</button>';
+                html += '<button class="att-btn ' + (isAbsent ? 'absent' : '') + '" onclick="setMemberAttendance(\'' + member.name.replace(/'/g, "\\'") + '\', false)">✗</button>';
+                html += '</div></div>';
+            });
+            
+            container.innerHTML = html || '<div class="empty-state">Keine Mitglieder</div>';
+            updateAttendanceCounts();
+        }
+        
+        function setMemberAttendance(memberName, isPresent) {
+            const current = attendanceByMember[memberName];
+            if ((isPresent && current === true) || (!isPresent && current === false)) {
+                delete attendanceByMember[memberName];
+            } else {
+                attendanceByMember[memberName] = isPresent;
+            }
+            renderAttendanceTable();
+        }
+        
+        function updateAttendanceCounts() {
+            let present = 0, absent = 0, planned = 0, unknown = 0;
+            allMembersData.forEach(member => {
+                const status = attendanceByMember[member.name];
+                if (status === true) present++;
+                else if (status === false) absent++;
+                else {
+                    if (geplantByMember[member.name]) planned++;
+                    else unknown++;
+                }
+            });
+            document.getElementById('att-count-present').textContent = present;
+            document.getElementById('att-count-absent').textContent = absent;
+            document.getElementById('att-count-planned').textContent = planned;
+            document.getElementById('att-count-unknown').textContent = unknown;
+        }
+        
+        async function saveAllAttendance() {
+            if (!currentAttendanceEventId) { showToast('Kein Auftritt ausgewählt', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'saveEventAttendance', eventId: currentAttendanceEventId, attendance: attendanceByMember });
+                if (result.error) showToast(result.error, true);
+                else showToast('✓ Anwesenheit gespeichert!');
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // MEMBERS LIST
+        // ============================================================
+        function renderMembersList(members) {
+            const container = document.getElementById('members-list');
+            if (members.length === 0) { container.innerHTML = '<div class="empty-state">Keine Mitglieder</div>'; return; }
+            
+            let html = '';
+            members.forEach(m => {
+                const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                const total = stats.attended + stats.absent;
+                const rate = total > 0 ? Math.round(stats.attended / total * 100) : 0;
+                
+                let tags = '';
+                if (m.busId) {
+                    const bus = busseData.find(b => b.id === m.busId);
+                    if (bus) tags += '<span class="tag bus">' + bus.name + '</span>';
+                }
+                if (m.registerId) {
+                    const reg = registerData.find(r => r.id === m.registerId);
+                    if (reg) tags += '<span class="tag register">' + reg.name + '</span>';
+                }
+                
+                html += '<div class="card" style="cursor: pointer;" onclick="showMemberDetail(\'' + m.name.replace(/'/g, "\\'") + '\')">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div><div style="font-weight: 700;">' + m.name + tags + '</div>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + stats.attended + ' | ✗ ' + stats.absent + ' | ' + rate + '%</div></div>';
+                html += '<div style="display: flex; gap: 0.5rem;">';
+                html += '<button class="btn btn-danger" style="padding: 0.5rem 0.75rem;" onclick="event.stopPropagation(); deleteMember(\'' + m.name.replace(/'/g, "\\'") + '\')">🗑️</button>';
+                html += '</div></div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function filterMembersList() {
+            const regFilter = document.getElementById('member-filter-register').value;
+            const busFilter = document.getElementById('member-filter-bus').value;
+            
+            let filtered = allMembersData;
+            if (regFilter) filtered = filtered.filter(m => m.registerId === regFilter);
+            if (busFilter) filtered = filtered.filter(m => m.busId === busFilter);
+            
+            renderMembersList(filtered);
+        }
+        
+        async function showMemberDetail(name) {
+            currentDetailMember = name;
+            showLoading();
+            try {
+                const result = await apiGet('getMemberAttendance', { name: name });
+                if (result.error) { showToast(result.error, true); hideLoading(); return; }
+                
+                const attendance = result.attendance || {};
+                let present = 0, absent = 0;
+                Object.values(attendance).forEach(s => { if (s === true) present++; else if (s === false) absent++; });
+                
+                const member = allMembersData.find(m => m.name === name);
+                let busTag = '', regTag = '';
+                if (member && member.busId) {
+                    const bus = busseData.find(b => b.id === member.busId);
+                    if (bus) busTag = '🚌 ' + bus.name;
+                }
+                if (member && member.registerId) {
+                    const reg = registerData.find(r => r.id === member.registerId);
+                    if (reg) regTag = '🎵 ' + reg.name;
+                }
+                
+                let eventsHtml = '';
+                eventsData.forEach(event => {
+                    const status = attendance[event.id];
+                    if (status === true) {
+                        eventsHtml += '<div class="card event-card attended" style="padding: 0.5rem; margin-bottom: 0.5rem;">';
+                        eventsHtml += '<div style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + '</div>';
+                        eventsHtml += '<div style="font-weight: 600;">' + event.name + '</div>';
+                        eventsHtml += '<span class="status present">✓ Dabei</span></div>';
+                    } else if (status === false) {
+                        eventsHtml += '<div class="card event-card absent" style="padding: 0.5rem; margin-bottom: 0.5rem;">';
+                        eventsHtml += '<div style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + '</div>';
+                        eventsHtml += '<div style="font-weight: 600;">' + event.name + '</div>';
+                        eventsHtml += '<span class="status absent">✗ Gefehlt</span></div>';
+                    }
+                });
+                
+                const total = present + absent;
+                const rate = total > 0 ? Math.round(present / total * 100) : 0;
+                
+                document.getElementById('member-detail-name').textContent = name;
+                document.getElementById('member-detail-bus').textContent = busTag;
+                document.getElementById('member-detail-bus').style.display = busTag ? 'inline-block' : 'none';
+                document.getElementById('member-detail-register').textContent = regTag;
+                document.getElementById('member-detail-register').style.display = regTag ? 'inline-block' : 'none';
+                document.getElementById('member-detail-present').textContent = present;
+                document.getElementById('member-detail-absent').textContent = absent;
+                document.getElementById('member-detail-rate').textContent = rate + '%';
+                document.getElementById('member-detail-events').innerHTML = eventsHtml || '<div class="empty-state">Keine Einträge</div>';
+                
+                // Rollen-Dropdown dynamisch füllen
+                const roleSelect = document.getElementById('member-detail-role');
+                let roleHtml = '';
+                rollenData.forEach(r => {
+                    roleHtml += '<option value="' + r.id + '">' + r.name + '</option>';
+                });
+                roleSelect.innerHTML = roleHtml;
+                
+                // Set current role
+                if (member) roleSelect.value = member.rollenId || 'ROLE-MITGLIED';
+                
+                // Show/hide role editing based on permissions
+                const permissions = currentUser.permissions || {};
+                const canEditRole = permissions.isAdmin || permissions.canManageRoles;
+                document.getElementById('member-role-group').style.display = canEditRole ? 'block' : 'none';
+                document.getElementById('save-role-btn').style.display = canEditRole ? 'block' : 'none';
+                
+                // Bus/Register Zuweisung für Admin
+                const busRegisterSection = document.getElementById('member-bus-register-section');
+                if (permissions.isAdmin || permissions.canManageMembers) {
+                    busRegisterSection.classList.remove('hidden');
+                    
+                    // Bus-Dropdown befüllen
+                    const busSelect = document.getElementById('member-detail-bus-select');
+                    let busHtml = '<option value="">-- Kein Bus --</option>';
+                    busseData.forEach(b => { busHtml += '<option value="' + b.id + '">' + b.name + '</option>'; });
+                    busSelect.innerHTML = busHtml;
+                    if (member && member.busId) busSelect.value = member.busId;
+                    
+                    // Register-Dropdown befüllen
+                    const regSelect = document.getElementById('member-detail-register-select');
+                    let regHtml = '<option value="">-- Kein Register --</option>';
+                    registerData.forEach(r => { regHtml += '<option value="' + r.id + '">' + r.name + '</option>'; });
+                    regSelect.innerHTML = regHtml;
+                    if (member && member.registerId) regSelect.value = member.registerId;
+                } else {
+                    busRegisterSection.classList.add('hidden');
+                }
+                
+                document.getElementById('member-detail-modal').classList.add('active');
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        function closeMemberDetail() {
+            document.getElementById('member-detail-modal').classList.remove('active');
+            currentDetailMember = null;
+        }
+        
+        async function saveMemberRole() {
+            if (!currentDetailMember) return;
+            const rollenId = document.getElementById('member-detail-role').value;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'updateMemberRole', name: currentDetailMember, rollenId: rollenId });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Rolle aktualisiert!');
+                    const member = allMembersData.find(m => m.name === currentDetailMember);
+                    if (member) member.rollenId = rollenId;
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // Bus/Register für Mitglied speichern (Admin-Funktion)
+        async function saveMemberBusRegister() {
+            if (!currentDetailMember) return;
+            
+            const busId = document.getElementById('member-detail-bus-select').value;
+            const registerId = document.getElementById('member-detail-register-select').value;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'updateMemberBusRegister', 
+                    name: currentDetailMember,
+                    busId: busId,
+                    registerId: registerId
+                });
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('Bus/Register gespeichert! Alle alten Einträge wurden aktualisiert.');
+                    
+                    // Lokale Daten aktualisieren
+                    const member = allMembersData.find(m => m.name === currentDetailMember);
+                    if (member) {
+                        member.busId = busId;
+                        member.registerId = registerId;
+                    }
+                    
+                    // Tags im Modal aktualisieren
+                    const bus = busseData.find(b => b.id === busId);
+                    const reg = registerData.find(r => r.id === registerId);
+                    
+                    document.getElementById('member-detail-bus').textContent = bus ? '🚌 ' + bus.name : '';
+                    document.getElementById('member-detail-bus').style.display = bus ? 'inline-block' : 'none';
+                    document.getElementById('member-detail-register').textContent = reg ? '🎵 ' + reg.name : '';
+                    document.getElementById('member-detail-register').style.display = reg ? 'inline-block' : 'none';
+                    
+                    // Members-Liste neu rendern
+                    renderMembersList(allMembersData);
+                }
+            } catch (e) { 
+                showToast('Fehler: ' + e.message, true); 
+            }
+            hideLoading();
+        }
+        
+        async function deleteMember(name) {
+            if (!confirm(name + ' wirklich löschen?')) return;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteMember', name: name });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await refreshData(); }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // BUSSE & REGISTER MANAGEMENT
+        // ============================================================
+        function renderBusseList() {
+            const container = document.getElementById('busse-list');
+            if (busseData.length === 0) { container.innerHTML = '<div class="empty-state">Keine Busse</div>'; return; }
+            let html = '';
+            busseData.forEach(b => {
+                html += '<div class="list-item"><span class="name">🚌 ' + b.name + '</span>';
+                html += '<button class="btn btn-danger" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" onclick="deleteBus(\'' + b.id + '\')">🗑️</button></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function renderRegisterList() {
+            const container = document.getElementById('register-list');
+            if (registerData.length === 0) { container.innerHTML = '<div class="empty-state">Keine Register</div>'; return; }
+            let html = '';
+            registerData.forEach(r => {
+                html += '<div class="list-item"><span class="name">🎵 ' + r.name + '</span>';
+                html += '<button class="btn btn-danger" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" onclick="deleteRegister(\'' + r.id + '\')">🗑️</button></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        async function addNewBus() {
+            const name = document.getElementById('new-bus-name').value.trim();
+            if (!name) { showToast('Bus-Name erforderlich', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'addBus', name: name });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Bus hinzugefügt!');
+                    document.getElementById('new-bus-name').value = '';
+                    const busseResult = await apiGet('getBusse');
+                    busseData = busseResult.busse || [];
+                    renderBusseList();
+                    populateFilters();
+                    populateProfileSelects();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteBus(id) {
+            if (!confirm('Bus wirklich löschen?')) return;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteBus', id: id });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Bus gelöscht!');
+                    busseData = busseData.filter(b => b.id !== id);
+                    renderBusseList();
+                    populateFilters();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function addNewRegister() {
+            const name = document.getElementById('new-register-name').value.trim();
+            if (!name) { showToast('Register-Name erforderlich', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'addRegister', name: name });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Register hinzugefügt!');
+                    document.getElementById('new-register-name').value = '';
+                    const regResult = await apiGet('getRegister');
+                    registerData = regResult.register || [];
+                    renderRegisterList();
+                    populateFilters();
+                    populateProfileSelects();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteRegister(id) {
+            if (!confirm('Register wirklich löschen?')) return;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteRegister', id: id });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Register gelöscht!');
+                    registerData = registerData.filter(r => r.id !== id);
+                    renderRegisterList();
+                    populateFilters();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // EVENTS MANAGEMENT
+        // ============================================================
+        
+        // Befülle Wochen-Dropdown für Event-Formular
+        function populateWeekSelects() {
+            const weeks = [...new Set(eventsData.map(e => e.week).filter(w => w))];
+            weeks.sort();
+            
+            const newSelect = document.getElementById('new-event-week');
+            const editSelect = document.getElementById('edit-event-week');
+            
+            let html = '<option value="">-- Wochenende wählen --</option>';
+            weeks.forEach(w => {
+                html += '<option value="' + w + '">' + w + '</option>';
+            });
+            html += '<option value="__NEW__">+ Neue Woche erstellen</option>';
+            
+            if (newSelect) newSelect.innerHTML = html;
+            if (editSelect) editSelect.innerHTML = html;
+        }
+        
+        // Zeige/verstecke Eingabefeld für neue Woche
+        function checkNewWeekOption() {
+            const select = document.getElementById('new-event-week');
+            const inputGroup = document.getElementById('new-week-input-group');
+            if (select.value === '__NEW__') {
+                inputGroup.classList.remove('hidden');
+            } else {
+                inputGroup.classList.add('hidden');
+            }
+        }
+        
+        // Konvertiere Date-Input (YYYY-MM-DD) zu deutschem Format (DD.MM.YYYY)
+        function dateInputToGerman(dateValue) {
+            if (!dateValue) return '';
+            const parts = dateValue.split('-');
+            if (parts.length === 3) {
+                return parts[2] + '.' + parts[1] + '.' + parts[0];
+            }
+            return dateValue;
+        }
+        
+        // Konvertiere deutsches Format (DD.MM.YYYY) zu Date-Input (YYYY-MM-DD)
+        function germanToDateInput(germanDate) {
+            if (!germanDate) return '';
+            const parts = germanDate.split('.');
+            if (parts.length === 3) {
+                return parts[2] + '-' + parts[1].padStart(2, '0') + '-' + parts[0].padStart(2, '0');
+            }
+            return germanDate;
+        }
+        
+        async function addNewEvent() {
+            const name = document.getElementById('new-event-name').value.trim();
+            if (!name) { showToast('Event-Name erforderlich', true); return; }
+            
+            // Woche bestimmen
+            let week = document.getElementById('new-event-week').value;
+            if (week === '__NEW__') {
+                week = document.getElementById('new-week-name').value.trim();
+                if (!week) { showToast('Name für neue Woche erforderlich', true); return; }
+            }
+            
+            // Datum konvertieren
+            const dateInput = document.getElementById('new-event-date').value;
+            const dateGerman = dateInputToGerman(dateInput);
+            
+            const eventData = {
+                name: name,
+                week: week,
+                date: dateGerman,
+                location: document.getElementById('new-event-location').value.trim(),
+                time: document.getElementById('new-event-time').value.trim()
+            };
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'addEvent', event: eventData });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Event hinzugefügt!');
+                    document.getElementById('new-event-name').value = '';
+                    document.getElementById('new-event-week').value = '';
+                    document.getElementById('new-week-name').value = '';
+                    document.getElementById('new-week-input-group').classList.add('hidden');
+                    document.getElementById('new-event-date').value = '';
+                    document.getElementById('new-event-location').value = '';
+                    document.getElementById('new-event-time').value = '20:00';
+                    await refreshData();
+                    populateWeekSelects();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // STATISTICS DISPLAY
+        // ============================================================
+        function renderBusStats(stats) {
+            const container = document.getElementById('bus-stats-list');
+            if (stats.length === 0) { container.innerHTML = '<div class="empty-state">Keine Bus-Statistiken</div>'; return; }
+            let html = '';
+            stats.forEach(s => {
+                const total = s.attended + s.absent;
+                const rate = total > 0 ? Math.round(s.attended / total * 100) : 0;
+                const memberCount = s.memberCount || 0;
+                html += '<div class="card"><div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div><div style="font-weight: 700;">🚌 ' + s.name + ' <span style="font-size: 0.8rem; color: var(--text-secondary);">(' + memberCount + ' Mitglieder)</span></div>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + s.attended + ' | ✗ ' + s.absent + '</div></div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-yellow);">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function renderRegisterStats(stats) {
+            const container = document.getElementById('register-stats-list');
+            if (stats.length === 0) { container.innerHTML = '<div class="empty-state">Keine Register-Statistiken</div>'; return; }
+            let html = '';
+            stats.forEach(s => {
+                const total = s.attended + s.absent;
+                const rate = total > 0 ? Math.round(s.attended / total * 100) : 0;
+                const memberCount = s.memberCount || 0;
+                html += '<div class="card"><div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<div><div style="font-weight: 700;">🎵 ' + s.name + ' <span style="font-size: 0.8rem; color: var(--text-secondary);">(' + memberCount + ' Mitglieder)</span></div>';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary);">✓ ' + s.attended + ' | ✗ ' + s.absent + '</div></div>';
+                html += '<div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-yellow);">' + rate + '%</div>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function renderAnzeigenList(anzeigen) {
+            const container = document.getElementById('anzeigen-list');
+            if (anzeigen.length === 0) { container.innerHTML = '<div class="empty-state">Keine Anzeigen</div>'; return; }
+            let html = '';
+            anzeigen.forEach(a => {
+                html += '<div class="anzeige-card"><div class="header">';
+                html += '<span class="vs">' + a.melder + ' ⚔️ ' + a.beschuldigter + '</span>';
+                html += '<span class="date">' + a.datum + '</span></div>';
+                html += '<div class="tatbestand">' + a.tatbestand + '</div>';
+                if (a.zeugen) html += '<div style="font-size: 0.8rem; color: var(--text-secondary);">Zeugen: ' + a.zeugen + '</div>';
+                html += '<div class="strafe">Strafvorschlag: ' + a.strafe + '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function renderRankings(topAttenders, topAbsent) {
+            const attendersContainer = document.getElementById('top-attenders');
+            const absentContainer = document.getElementById('top-absent');
+            
+            if (topAttenders.length === 0) {
+                attendersContainer.innerHTML = '<div class="empty-state">Keine Daten</div>';
+            } else {
+                attendersContainer.innerHTML = topAttenders.map((m, i) => 
+                    '<div class="leaderboard-item"><div class="rank">' + (i + 1) + '</div><div class="name">' + m.name + '</div><div class="score">' + m.attended + ' ✓</div></div>'
+                ).join('');
+            }
+            
+            if (topAbsent.length === 0) {
+                absentContainer.innerHTML = '<div class="empty-state">Keine Daten</div>';
+            } else {
+                absentContainer.innerHTML = topAbsent.map((m, i) => 
+                    '<div class="leaderboard-item"><div class="rank">' + (i + 1) + '</div><div class="name">' + m.name + '</div><div class="score bad">' + m.absent + ' ✗</div></div>'
+                ).join('');
+            }
+        }
+        
+        // ============================================================
+        // QR CODE GENERATION
+        // ============================================================
+        function showEventQR() {
+            const eventId = document.getElementById('qr-event-select').value;
+            if (!eventId) { document.getElementById('event-qr-display').classList.add('hidden'); return; }
+            
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            const qrData = 'LKT-EVENT:' + eventId;
+            const container = document.getElementById('event-qr-canvas');
+            
+            try {
+                const qr = qrcode(0, 'M');
+                qr.addData(qrData);
+                qr.make();
+                container.innerHTML = qr.createImgTag(6, 8);
+                
+                document.getElementById('event-qr-display').classList.remove('hidden');
+                document.getElementById('event-qr-label').textContent = event.name;
+                document.getElementById('event-qr-sublabel').textContent = (event.date || '') + ' • ' + (event.time || '') + ' • ' + (event.location || '');
+            } catch (e) { showToast('QR-Fehler', true); }
+        }
+        
+        function downloadEventQR() {
+            const img = document.querySelector('#event-qr-canvas img');
+            if (!img) return;
+            const link = document.createElement('a');
+            link.download = 'LKT_QR_' + document.getElementById('qr-event-select').value + '.png';
+            link.href = img.src;
+            link.click();
+        }
+        
+        // ============================================================
+        // SCHWARZES BRETT
+        // ============================================================
+        let newsData = [];
+        let currentBrettSection = 'news'; // 'news' oder 'forum'
+        
+        function showBrettSection(section) {
+            currentBrettSection = section;
+            document.getElementById('news-tab-btn').classList.toggle('active', section === 'news');
+            document.getElementById('forum-tab-btn').classList.toggle('active', section === 'forum');
+            document.getElementById('news-section').style.display = section === 'news' ? 'block' : 'none';
+            document.getElementById('forum-section').style.display = section === 'forum' ? 'block' : 'none';
+            
+            if (section === 'news') {
+                loadNews();
+            } else {
+                loadBrettPosts(currentUser.role === 'gericht' ? 'admin' : 'member');
+            }
+        }
+        
+        async function loadNews() {
+            try {
+                const result = await apiGet('getNews');
+                newsData = result.news || [];
+                renderNews();
+                markNewsAsRead();
+            } catch (e) {
+                console.error('News load error:', e);
+            }
+        }
+        
+        function renderNews() {
+            const container = document.getElementById('news-posts');
+            if (!container) return;
+            
+            const permissions = currentUser.permissions || {};
+            const canPost = permissions.isAdmin || permissions.canPostNews;
+            
+            let html = '';
+            
+            // Formular für berechtigte User
+            if (canPost) {
+                html += '<div class="card" style="margin-bottom: 1rem; border: 2px solid var(--accent-red);">';
+                html += '<h3 style="margin-bottom: 0.75rem; color: var(--accent-red);">📢 Neue Wichtige News</h3>';
+                html += '<div class="input-group"><input type="text" id="news-titel" placeholder="Titel der News"></div>';
+                html += '<div class="input-group"><textarea id="news-inhalt" rows="3" placeholder="Inhalt der News..."></textarea></div>';
+                html += '<button class="btn btn-block" style="background: var(--accent-red);" onclick="submitNews()">📢 News veröffentlichen</button>';
+                html += '</div>';
+            }
+            
+            // News anzeigen (neueste zuerst)
+            const sortedNews = [...newsData].sort((a, b) => new Date(b.datum) - new Date(a.datum));
+            
+            if (sortedNews.length === 0) {
+                html += '<div class="empty-state">Keine wichtigen News</div>';
+            } else {
+                sortedNews.forEach(news => {
+                    const date = new Date(news.datum).toLocaleDateString('de-DE', { 
+                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                    });
+                    
+                    html += '<div class="news-card">';
+                    html += '<div class="news-header">';
+                    html += '<div class="news-title">' + news.titel + '</div>';
+                    html += '<div class="news-date">' + date + '</div>';
+                    html += '</div>';
+                    html += '<div class="news-content">' + news.inhalt.replace(/\n/g, '<br>') + '</div>';
+                    html += '<div class="news-author">— ' + news.autor + '</div>';
+                    
+                    if (canPost) {
+                        html += '<button class="btn btn-danger" style="margin-top: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteNews(\'' + news.id + '\')">🗑️ Löschen</button>';
+                    }
+                    html += '</div>';
+                });
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        async function submitNews() {
+            const titel = document.getElementById('news-titel').value.trim();
+            const inhalt = document.getElementById('news-inhalt').value.trim();
+            
+            if (!titel || !inhalt) {
+                showToast('Titel und Inhalt erforderlich', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'submitNews', 
+                    autor: currentUser.name, 
+                    titel: titel, 
+                    inhalt: inhalt 
+                });
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('📢 News veröffentlicht!');
+                    document.getElementById('news-titel').value = '';
+                    document.getElementById('news-inhalt').value = '';
+                    loadNews();
+                    
+                    // Push-Benachrichtigung an alle senden
+                    sendNewsNotification(titel);
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function deleteNews(newsId) {
+            if (!confirm('Diese News wirklich löschen?')) return;
+            
+            showLoading();
+            try {
+                await apiPost({ action: 'deleteNews', newsId: newsId });
+                showToast('News gelöscht');
+                loadNews();
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        function markNewsAsRead() {
+            if (!currentUser) return;
+            const key = 'lkt-news-lastread-' + currentUser.name;
+            localStorage.setItem(key, Date.now().toString());
+            updateNewsUnreadBadge();
+        }
+        
+        function updateNewsUnreadBadge() {
+            if (!currentUser) return;
+            const key = 'lkt-news-lastread-' + currentUser.name;
+            const lastRead = parseInt(localStorage.getItem(key) || '0');
+            
+            const unread = newsData.filter(n => new Date(n.datum).getTime() > lastRead).length;
+            
+            const badge = document.getElementById('news-unread-badge');
+            if (badge) {
+                if (unread > 0) {
+                    badge.textContent = unread;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+        
+        // Push-Benachrichtigung für News senden
+        async function sendNewsNotification(title) {
+            if ('serviceWorker' in navigator && 'Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    try {
+                        const registration = await navigator.serviceWorker.ready;
+                        registration.showNotification('📢 LKT News', {
+                            body: title,
+                            icon: '/icon-192.png',
+                            badge: '/icon-192.png',
+                            tag: 'lkt-news',
+                            requireInteraction: true
+                        });
+                    } catch (e) {
+                        console.log('Notification error:', e);
+                    }
+                }
+            }
+        }
+        
+        async function loadBrettPosts(view) {
+            // SOFORT: Cache anzeigen
+            const cachedPosts = getFromCache('brett_' + currentForumBereichId);
+            const cachedKom = getFromCache('kommentare');
+            if (cachedPosts) {
+                brettPostsData = cachedPosts;
+                if (cachedKom) kommentareData = cachedKom;
+                renderBrettPosts(view);
+            }
+            
+            // DANN: Frische Daten parallel laden
+            try {
+                const [postsResult, komResult] = await Promise.all([
+                    apiGet('getBrettPosts', { bereichId: currentForumBereichId }),
+                    apiGet('getKommentare')
+                ]);
+                
+                brettPostsData = postsResult.posts || [];
+                saveToCache('brett_' + currentForumBereichId, brettPostsData);
+                
+                kommentareData = {};
+                (komResult.kommentare || []).forEach(k => {
+                    if (!kommentareData[k.postId]) kommentareData[k.postId] = [];
+                    kommentareData[k.postId].push(k);
+                });
+                saveToCache('kommentare', kommentareData);
+                
+                renderBrettPosts(view);
+                updateUnreadBadges();
+            } catch (e) { console.error('Brett load error:', e); }
+        }
+        
+        // Ungelesene Beiträge zählen und Badge aktualisieren
+        function updateUnreadBadges() {
+            if (!currentUser) return;
+            
+            const lastReadKey = 'lkt-brett-lastread-' + currentUser.name;
+            const lastRead = JSON.parse(localStorage.getItem(lastReadKey) || '{}');
+            
+            let totalUnread = 0;
+            
+            // Zähle ungelesene pro Bereich
+            forumBereiche.forEach(bereich => {
+                const cachedPosts = getFromCache('brett_' + bereich.id) || [];
+                const bereichLastRead = lastRead[bereich.id] || 0;
+                
+                const unreadCount = cachedPosts.filter(post => {
+                    const postTime = new Date(post.erstelltAm).getTime();
+                    return postTime > bereichLastRead;
+                }).length;
+                
+                // Badge am Bereich-Button aktualisieren
+                const bereichBtn = document.querySelector('.forum-bereich-btn[data-bereich-id="' + bereich.id + '"] .bereich-badge');
+                if (bereichBtn) {
+                    if (unreadCount > 0) {
+                        bereichBtn.textContent = unreadCount;
+                        bereichBtn.classList.remove('hidden');
+                    } else {
+                        bereichBtn.classList.add('hidden');
+                    }
+                }
+                
+                totalUnread += unreadCount;
+            });
+            
+            // Badge am Tab aktualisieren
+            const memberBadge = document.getElementById('brett-badge-member');
+            const gerichtBadge = document.getElementById('brett-badge-gericht');
+            
+            [memberBadge, gerichtBadge].forEach(badge => {
+                if (badge) {
+                    if (totalUnread > 0) {
+                        badge.textContent = totalUnread;
+                        badge.classList.remove('hidden');
+                    } else {
+                        badge.classList.add('hidden');
+                    }
+                }
+            });
+        }
+        
+        // Bereich als gelesen markieren
+        function markBereichAsRead(bereichId) {
+            if (!currentUser) return;
+            
+            const lastReadKey = 'lkt-brett-lastread-' + currentUser.name;
+            const lastRead = JSON.parse(localStorage.getItem(lastReadKey) || '{}');
+            lastRead[bereichId] = Date.now();
+            localStorage.setItem(lastReadKey, JSON.stringify(lastRead));
+            
+            // Badge aktualisieren
+            setTimeout(updateUnreadBadges, 100);
+        }
+        
+        function renderBrettPosts(view) {
+            const container = document.getElementById(view === 'gericht' ? 'brett-posts-gericht' : 'brett-posts-member');
+            if (!container) {
+                console.error('Brett container not found for view:', view);
+                return;
+            }
+            
+            if (brettPostsData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Noch keine Beiträge in diesem Bereich</div>';
+                return;
+            }
+            
+            const permissions = currentUser.permissions || {};
+            const canDelete = permissions.isAdmin || permissions.canManageMembers;
+            let html = '';
+            
+            brettPostsData.forEach(post => {
+                const date = new Date(post.erstelltAm);
+                const dateStr = date.toLocaleDateString('de-DE') + ' ' + date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                const kommentare = kommentareData[post.id] || [];
+                
+                html += '<div class="brett-post" id="post-' + post.id + '">';
+                html += '<div class="post-header">';
+                html += '<div class="post-title">' + escapeHtml(post.titel) + '</div>';
+                if (canDelete) {
+                    html += '<button class="btn btn-danger" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="deletePost(\'' + post.id + '\')">🗑️</button>';
+                }
+                html += '</div>';
+                html += '<div class="post-meta">👤 ' + escapeHtml(post.autor) + ' • ' + dateStr + '</div>';
+                html += '<div class="post-content">' + escapeHtml(post.inhalt) + '</div>';
+                
+                // Kommentare
+                html += '<div class="kommentare-section">';
+                html += '<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">💬 ' + kommentare.length + ' Kommentar' + (kommentare.length !== 1 ? 'e' : '') + '</div>';
+                
+                kommentare.forEach(k => {
+                    const kDate = new Date(k.erstelltAm);
+                    const kDateStr = kDate.toLocaleDateString('de-DE') + ' ' + kDate.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+                    html += '<div class="kommentar">';
+                    html += '<div class="kom-header"><span class="kom-autor">' + escapeHtml(k.autor) + '</span><span class="kom-date">' + kDateStr + '</span></div>';
+                    html += '<div class="kom-text">' + escapeHtml(k.text) + '</div>';
+                    html += '</div>';
+                });
+                
+                // Kommentar-Eingabe
+                html += '<div class="kommentar-input">';
+                html += '<input type="text" id="kom-input-' + post.id + '" placeholder="Kommentar schreiben..." onkeypress="if(event.key===\'Enter\')addComment(\'' + post.id + '\')">';
+                html += '<button class="btn btn-primary" style="padding: 0.5rem 0.75rem;" onclick="addComment(\'' + post.id + '\')">💬</button>';
+                html += '</div>';
+                html += '</div>'; // kommentare-section
+                html += '</div>'; // brett-post
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        async function submitBrettPost() {
+            const titel = document.getElementById('post-titel').value.trim();
+            const inhalt = document.getElementById('post-inhalt').value.trim();
+            if (!titel || !inhalt) { showToast('Titel und Inhalt erforderlich', true); return; }
+            
+            // Optimistisches Update - sofort anzeigen
+            const tempPost = {
+                id: 'temp-' + Date.now(),
+                autor: currentUser.name,
+                titel: titel,
+                inhalt: inhalt,
+                erstelltAm: new Date().toISOString(),
+                bereichId: currentForumBereichId
+            };
+            brettPostsData.unshift(tempPost);
+            renderBrettPosts('member');
+            document.getElementById('post-titel').value = '';
+            document.getElementById('post-inhalt').value = '';
+            showToast('Beitrag veröffentlicht!');
+            
+            // Im Hintergrund speichern
+            try {
+                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
+                if (result.error) { 
+                    showToast(result.error, true);
+                    // Entferne temp Post bei Fehler
+                    brettPostsData = brettPostsData.filter(p => p.id !== tempPost.id);
+                    renderBrettPosts('member');
+                } else {
+                    // Lade frische Daten im Hintergrund
+                    loadBrettPosts('member');
+                }
+            } catch (e) { 
+                showToast('Fehler beim Speichern', true);
+            }
+        }
+        
+        async function submitBrettPostGericht() {
+            const titel = document.getElementById('post-titel-gericht').value.trim();
+            const inhalt = document.getElementById('post-inhalt-gericht').value.trim();
+            if (!titel || !inhalt) { showToast('Titel und Inhalt erforderlich', true); return; }
+            
+            // Optimistisches Update
+            const tempPost = {
+                id: 'temp-' + Date.now(),
+                autor: currentUser.name,
+                titel: titel,
+                inhalt: inhalt,
+                erstelltAm: new Date().toISOString(),
+                bereichId: currentForumBereichId
+            };
+            brettPostsData.unshift(tempPost);
+            renderBrettPosts('gericht');
+            document.getElementById('post-titel-gericht').value = '';
+            document.getElementById('post-inhalt-gericht').value = '';
+            showToast('Beitrag veröffentlicht!');
+            
+            // Im Hintergrund speichern
+            try {
+                const result = await apiPost({ action: 'addBrettPost', autor: currentUser.name, titel: titel, inhalt: inhalt, bereichId: currentForumBereichId });
+                if (result.error) { 
+                    showToast(result.error, true);
+                    brettPostsData = brettPostsData.filter(p => p.id !== tempPost.id);
+                    renderBrettPosts('gericht');
+                } else {
+                    loadBrettPosts('gericht');
+                }
+            } catch (e) { 
+                showToast('Fehler beim Speichern', true);
+            }
+        }
+        
+        async function deletePost(postId) {
+            if (!confirm('Beitrag wirklich löschen?')) return;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteBrettPost', postId: postId });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Beitrag gelöscht');
+                    await loadBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function addComment(postId) {
+            const input = document.getElementById('kom-input-' + postId);
+            const text = input.value.trim();
+            if (!text) return;
+            
+            try {
+                const result = await apiPost({ action: 'addKommentar', postId: postId, autor: currentUser.name, text: text });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    input.value = '';
+                    // Kommentar lokal hinzufügen für schnelle Anzeige
+                    if (!kommentareData[postId]) kommentareData[postId] = [];
+                    kommentareData[postId].push({ id: result.id, postId: postId, autor: currentUser.name, text: text, erstelltAm: new Date().toISOString() });
+                    renderBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // ============================================================
+        // PDF EXPORTS
+        // ============================================================
+        function exportReportPDF() {
+            showLoading();
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>LKT Saison-Report 2026</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }';
+            content += '.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 30px; text-align: center; margin: -20px -20px 20px -20px; }';
+            content += '.header h1 { color: #ffd700; margin: 0; font-size: 28px; }';
+            content += '.header p { margin: 10px 0 0 0; }';
+            content += '.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }';
+            content += '.stat-box { background: #f3f4f6; padding: 15px; border-radius: 10px; text-align: center; }';
+            content += '.stat-box .number { font-size: 28px; font-weight: bold; color: #1e40af; }';
+            content += '.stat-box .label { color: #666; font-size: 10px; }';
+            content += '.rate-box { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; margin: 20px 0; }';
+            content += '.rate-box .number { font-size: 36px; font-weight: bold; }';
+            content += 'h2 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 8px; margin-top: 25px; page-break-after: avoid; font-size: 16px; }';
+            content += 'h3 { color: #374151; margin-top: 15px; page-break-after: avoid; font-size: 13px; }';
+            content += 'table { width: 100%; border-collapse: collapse; margin: 10px 0; page-break-inside: auto; }';
+            content += 'tr { page-break-inside: avoid; page-break-after: auto; }';
+            content += 'th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 10px; }';
+            content += 'th { background: #1e40af; color: white; }';
+            content += 'tr:nth-child(even) { background: #f9fafb; }';
+            content += '.top-list { columns: 2; column-gap: 20px; }';
+            content += '.top-item { padding: 6px; margin: 4px 0; background: #f3f4f6; border-radius: 5px; display: flex; justify-content: space-between; break-inside: avoid; font-size: 10px; }';
+            content += '.top-item.gold { background: #fef3c7; border-left: 4px solid #f59e0b; }';
+            content += '.top-item.silver { background: #f3f4f6; border-left: 4px solid #9ca3af; }';
+            content += '.top-item.bronze { background: #fed7aa; border-left: 4px solid #ea580c; }';
+            content += '.weekend-section { page-break-inside: avoid; margin-bottom: 15px; }';
+            content += '.absence-card { background: #fef2f2; border-left: 4px solid #ef4444; padding: 8px 12px; margin: 5px 0; border-radius: 0 5px 5px 0; page-break-inside: avoid; }';
+            content += '.absence-name { font-weight: bold; color: #991b1b; }';
+            content += '.absence-reason { color: #666; font-style: italic; margin-top: 3px; }';
+            content += '.absence-events { color: #888; font-size: 9px; margin-top: 2px; }';
+            content += '@media print { .stat-box, .rate-box, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }';
+            content += '@page { margin: 15mm; }';
+            content += '</style></head><body>';
+            
+            content += '<div class="header">';
+            content += '<h1>🎺 LUMPENKAPELLE TALDORF</h1>';
+            content += '<p>Saison-Report 2026</p>';
+            content += '</div>';
+            
+            // Übersicht
+            content += '<div class="stats-grid">';
+            content += '<div class="stat-box"><div class="number">' + (statsData.totalMembers || 0) + '</div><div class="label">Mitglieder</div></div>';
+            content += '<div class="stat-box"><div class="number">' + (statsData.totalEvents || 0) + '</div><div class="label">Auftritte</div></div>';
+            content += '<div class="stat-box"><div class="number">' + (statsData.totalAttended || 0) + '</div><div class="label">Check-ins</div></div>';
+            content += '<div class="stat-box"><div class="number">' + (statsData.totalAbsent || 0) + '</div><div class="label">Abwesenheiten</div></div>';
+            content += '</div>';
+            
+            content += '<div class="rate-box">';
+            content += '<div class="number">' + (statsData.attendanceRate || 0) + '%</div>';
+            content += '<div class="label">Gesamte Anwesenheitsquote</div>';
+            content += '</div>';
+            
+            // Top Anwesende
+            if (statsData.topAttenders && statsData.topAttenders.length > 0) {
+                content += '<h2>🏆 Top Anwesende</h2>';
+                content += '<div class="top-list">';
+                statsData.topAttenders.slice(0, 10).forEach((m, i) => {
+                    const cssClass = i === 0 ? 'gold' : (i === 1 ? 'silver' : (i === 2 ? 'bronze' : ''));
+                    content += '<div class="top-item ' + cssClass + '"><span>' + (i + 1) + '. ' + m.name + '</span><span><strong>' + m.attended + '</strong> Auftritte</span></div>';
+                });
+                content += '</div>';
+            }
+            
+            // Top Abwesende
+            if (statsData.topAbsent && statsData.topAbsent.length > 0) {
+                content += '<h2>⚠️ Meiste Abwesenheiten</h2>';
+                content += '<div class="top-list">';
+                statsData.topAbsent.slice(0, 10).forEach((m, i) => {
+                    content += '<div class="top-item"><span>' + (i + 1) + '. ' + m.name + '</span><span><strong>' + m.absent + '</strong> gefehlt</span></div>';
+                });
+                content += '</div>';
+            }
+            
+            // ABMELDUNGEN NACH WOCHENENDE
+            if (statsData.absences && statsData.absences.length > 0) {
+                content += '<h2 style="color: #dc2626;">📋 Alle Abmeldungen nach Wochenende</h2>';
+                
+                // Gruppiere nach Wochenende
+                const absencesByWeek = {};
+                statsData.absences.forEach(abs => {
+                    const event = eventsData.find(e => e.id === abs.eventId);
+                    const week = event ? event.week : 'Unbekannt';
+                    if (!absencesByWeek[week]) absencesByWeek[week] = [];
+                    
+                    // Prüfe ob Person schon für dieses Wochenende existiert
+                    let existing = absencesByWeek[week].find(a => a.name.toLowerCase() === abs.name.toLowerCase());
+                    if (existing) {
+                        existing.events.push(event ? event.name : abs.eventId);
+                        if (abs.comment && !existing.comment) existing.comment = abs.comment;
+                    } else {
+                        absencesByWeek[week].push({
+                            name: abs.name,
+                            comment: abs.comment || '',
+                            events: [event ? event.name : abs.eventId]
+                        });
+                    }
+                });
+                
+                // Sortiere Wochenenden
+                const sortedWeeks = Object.keys(absencesByWeek).sort();
+                
+                sortedWeeks.forEach(week => {
+                    content += '<div class="weekend-section">';
+                    content += '<h3>📅 ' + week + '</h3>';
+                    content += '<table>';
+                    content += '<tr><th style="width: 25%;">Name</th><th style="width: 40%;">Begründung</th><th style="width: 35%;">Fehlt bei</th></tr>';
+                    
+                    absencesByWeek[week].sort((a, b) => a.name.localeCompare(b.name)).forEach(abs => {
+                        content += '<tr>';
+                        content += '<td><strong>' + abs.name + '</strong></td>';
+                        content += '<td>' + (abs.comment || '-') + '</td>';
+                        content += '<td style="font-size: 9px;">' + abs.events.join(', ') + '</td>';
+                        content += '</tr>';
+                    });
+                    content += '</table>';
+                    content += '</div>';
+                });
+            }
+            
+            // Alle Mitglieder Tabelle
+            if (allMembersData.length > 0) {
+                content += '<h2 style="page-break-before: always;">👥 Alle Mitglieder</h2>';
+                content += '<table>';
+                content += '<tr><th>Name</th><th>Register</th><th>Bus</th><th>Dabei</th><th>Gefehlt</th><th>Quote</th></tr>';
+                allMembersData.forEach(m => {
+                    const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                    const total = stats.attended + stats.absent;
+                    const rate = total > 0 ? Math.round(stats.attended / total * 100) : 0;
+                    const regName = m.registerId ? (registerData.find(r => r.id === m.registerId)?.name || '-') : '-';
+                    const busName = m.busId ? (busseData.find(b => b.id === m.busId)?.name || '-') : '-';
+                    content += '<tr><td>' + m.name + '</td><td>' + regName + '</td><td>' + busName + '</td><td>' + stats.attended + '</td><td>' + stats.absent + '</td><td>' + rate + '%</td></tr>';
+                });
+                content += '</table>';
+            }
+            
+            content += '<p style="text-align: center; color: #999; margin-top: 40px;">LKT Tracker 2026 - Erstellt: ' + new Date().toLocaleString('de-DE') + '</p>';
+            content += '</body></html>';
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
+            showToast('PDF erstellt!');
+        }
+        
+        function exportBusStatsPDF() {
+            showLoading();
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>LKT Bus-Statistik 2026</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }';
+            content += '.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 30px; text-align: center; margin: -20px -20px 20px -20px; }';
+            content += '.header h1 { color: #ffd700; margin: 0; font-size: 28px; }';
+            content += '.header p { margin: 10px 0 0 0; }';
+            content += 'h2 { color: #3b82f6; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; margin-top: 25px; page-break-after: avoid; font-size: 16px; }';
+            content += 'table { width: 100%; border-collapse: collapse; margin: 15px 0; page-break-inside: auto; }';
+            content += 'tr { page-break-inside: avoid; page-break-after: auto; }';
+            content += 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }';
+            content += 'th { background: #3b82f6; color: white; }';
+            content += 'tr:nth-child(even) { background: #f9fafb; }';
+            content += '.progress-bar { background: #e5e7eb; border-radius: 10px; height: 15px; overflow: hidden; }';
+            content += '.progress-fill { background: linear-gradient(90deg, #10b981, #059669); height: 100%; border-radius: 10px; }';
+            content += '.bus-card { border: 2px solid #3b82f6; border-radius: 10px; padding: 15px; margin: 15px 0; page-break-inside: avoid; }';
+            content += '.bus-name { font-size: 16px; font-weight: bold; color: #3b82f6; }';
+            content += '.bus-stats { display: flex; gap: 20px; margin: 10px 0; }';
+            content += '.bus-stat { text-align: center; }';
+            content += '.bus-stat .number { font-size: 20px; font-weight: bold; }';
+            content += '.bus-stat .label { color: #666; font-size: 10px; }';
+            content += '.members-list { columns: 3; column-gap: 15px; margin-top: 10px; font-size: 10px; }';
+            content += '.member-item { padding: 3px 0; border-bottom: 1px solid #eee; break-inside: avoid; }';
+            content += '@media print { .bus-card, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }';
+            content += '@page { margin: 15mm; }';
+            content += '</style></head><body>';
+            
+            content += '<div class="header">';
+            content += '<h1>🚌 LUMPENKAPELLE TALDORF</h1>';
+            content += '<p>Bus-Statistik 2026</p>';
+            content += '</div>';
+            
+            // Übersichtstabelle
+            content += '<h2>📊 Übersicht</h2>';
+            content += '<table>';
+            content += '<tr><th>Bus</th><th>Mitglieder</th><th>Dabei</th><th>Gefehlt</th><th>Quote</th><th>Anwesenheit</th></tr>';
+            busseData.forEach(bus => {
+                const members = allMembersData.filter(m => m.busId === bus.id);
+                let attended = 0, absent = 0;
+                members.forEach(m => {
+                    const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                    attended += stats.attended;
+                    absent += stats.absent;
+                });
+                const total = attended + absent;
+                const rate = total > 0 ? Math.round(attended / total * 100) : 0;
+                content += '<tr>';
+                content += '<td><strong>' + bus.name + '</strong></td>';
+                content += '<td>' + members.length + '</td>';
+                content += '<td style="color: #059669;">' + attended + '</td>';
+                content += '<td style="color: #dc2626;">' + absent + '</td>';
+                content += '<td><strong>' + rate + '%</strong></td>';
+                content += '<td><div class="progress-bar"><div class="progress-fill" style="width: ' + rate + '%"></div></div></td>';
+                content += '</tr>';
+            });
+            content += '</table>';
+            
+            // Detail pro Bus
+            busseData.forEach(bus => {
+                const members = allMembersData.filter(m => m.busId === bus.id);
+                let attended = 0, absent = 0;
+                members.forEach(m => {
+                    const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                    attended += stats.attended;
+                    absent += stats.absent;
+                });
+                const total = attended + absent;
+                const rate = total > 0 ? Math.round(attended / total * 100) : 0;
+                
+                content += '<div class="bus-card">';
+                content += '<div class="bus-name">🚌 ' + bus.name + '</div>';
+                content += '<div class="bus-stats">';
+                content += '<div class="bus-stat"><div class="number">' + members.length + '</div><div class="label">Mitglieder</div></div>';
+                content += '<div class="bus-stat"><div class="number" style="color: #059669;">' + attended + '</div><div class="label">Dabei</div></div>';
+                content += '<div class="bus-stat"><div class="number" style="color: #dc2626;">' + absent + '</div><div class="label">Gefehlt</div></div>';
+                content += '<div class="bus-stat"><div class="number" style="color: #3b82f6;">' + rate + '%</div><div class="label">Quote</div></div>';
+                content += '</div>';
+                
+                if (members.length > 0) {
+                    content += '<strong>Mitglieder:</strong>';
+                    content += '<div class="members-list">';
+                    members.forEach(m => {
+                        const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                        const mTotal = stats.attended + stats.absent;
+                        const mRate = mTotal > 0 ? Math.round(stats.attended / mTotal * 100) : 0;
+                        content += '<div class="member-item">' + m.name + ' <span style="color: #666;">(' + mRate + '%)</span></div>';
+                    });
+                    content += '</div>';
+                }
+                content += '</div>';
+            });
+            
+            content += '<p style="text-align: center; color: #999; margin-top: 40px;">LKT Tracker 2026 - Erstellt: ' + new Date().toLocaleString('de-DE') + '</p>';
+            content += '</body></html>';
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
+            showToast('PDF erstellt!');
+        }
+        
+        function exportRegisterStatsPDF() {
+            showLoading();
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>LKT Register-Statistik 2026</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }';
+            content += '.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 30px; text-align: center; margin: -20px -20px 20px -20px; }';
+            content += '.header h1 { color: #ffd700; margin: 0; font-size: 28px; }';
+            content += '.header p { margin: 10px 0 0 0; }';
+            content += 'h2 { color: #8b5cf6; border-bottom: 2px solid #8b5cf6; padding-bottom: 8px; margin-top: 25px; page-break-after: avoid; font-size: 16px; }';
+            content += 'table { width: 100%; border-collapse: collapse; margin: 15px 0; page-break-inside: auto; }';
+            content += 'tr { page-break-inside: avoid; page-break-after: auto; }';
+            content += 'th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 10px; }';
+            content += 'th { background: #8b5cf6; color: white; }';
+            content += 'tr:nth-child(even) { background: #f9fafb; }';
+            content += '.progress-bar { background: #e5e7eb; border-radius: 10px; height: 15px; overflow: hidden; }';
+            content += '.progress-fill { background: linear-gradient(90deg, #8b5cf6, #7c3aed); height: 100%; border-radius: 10px; }';
+            content += '.register-card { border: 2px solid #8b5cf6; border-radius: 10px; padding: 15px; margin: 15px 0; page-break-inside: avoid; }';
+            content += '.register-name { font-size: 16px; font-weight: bold; color: #8b5cf6; }';
+            content += '.register-stats { display: flex; gap: 20px; margin: 10px 0; }';
+            content += '.register-stat { text-align: center; }';
+            content += '.register-stat .number { font-size: 20px; font-weight: bold; }';
+            content += '.register-stat .label { color: #666; font-size: 10px; }';
+            content += '.members-list { columns: 3; column-gap: 15px; margin-top: 10px; font-size: 10px; }';
+            content += '.member-item { padding: 3px 0; border-bottom: 1px solid #eee; break-inside: avoid; }';
+            content += '@media print { .register-card, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }';
+            content += '@page { margin: 15mm; }';
+            content += '</style></head><body>';
+            
+            content += '<div class="header">';
+            content += '<h1>🎵 LUMPENKAPELLE TALDORF</h1>';
+            content += '<p>Register-Statistik 2026</p>';
+            content += '</div>';
+            
+            // Übersichtstabelle
+            content += '<h2>📊 Übersicht</h2>';
+            content += '<table>';
+            content += '<tr><th>Register</th><th>Mitglieder</th><th>Dabei</th><th>Gefehlt</th><th>Quote</th><th>Anwesenheit</th></tr>';
+            registerData.forEach(reg => {
+                const members = allMembersData.filter(m => m.registerId === reg.id);
+                let attended = 0, absent = 0;
+                members.forEach(m => {
+                    const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                    attended += stats.attended;
+                    absent += stats.absent;
+                });
+                const total = attended + absent;
+                const rate = total > 0 ? Math.round(attended / total * 100) : 0;
+                content += '<tr>';
+                content += '<td><strong>' + reg.name + '</strong></td>';
+                content += '<td>' + members.length + '</td>';
+                content += '<td style="color: #059669;">' + attended + '</td>';
+                content += '<td style="color: #dc2626;">' + absent + '</td>';
+                content += '<td><strong>' + rate + '%</strong></td>';
+                content += '<td><div class="progress-bar"><div class="progress-fill" style="width: ' + rate + '%"></div></div></td>';
+                content += '</tr>';
+            });
+            content += '</table>';
+            
+            // Detail pro Register
+            registerData.forEach(reg => {
+                const members = allMembersData.filter(m => m.registerId === reg.id);
+                let attended = 0, absent = 0;
+                members.forEach(m => {
+                    const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                    attended += stats.attended;
+                    absent += stats.absent;
+                });
+                const total = attended + absent;
+                const rate = total > 0 ? Math.round(attended / total * 100) : 0;
+                
+                content += '<div class="register-card">';
+                content += '<div class="register-name">🎵 ' + reg.name + '</div>';
+                content += '<div class="register-stats">';
+                content += '<div class="register-stat"><div class="number">' + members.length + '</div><div class="label">Mitglieder</div></div>';
+                content += '<div class="register-stat"><div class="number" style="color: #059669;">' + attended + '</div><div class="label">Dabei</div></div>';
+                content += '<div class="register-stat"><div class="number" style="color: #dc2626;">' + absent + '</div><div class="label">Gefehlt</div></div>';
+                content += '<div class="register-stat"><div class="number" style="color: #8b5cf6;">' + rate + '%</div><div class="label">Quote</div></div>';
+                content += '</div>';
+                
+                if (members.length > 0) {
+                    content += '<strong>Mitglieder:</strong>';
+                    content += '<div class="members-list">';
+                    members.forEach(m => {
+                        const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                        const mTotal = stats.attended + stats.absent;
+                        const mRate = mTotal > 0 ? Math.round(stats.attended / mTotal * 100) : 0;
+                        content += '<div class="member-item">' + m.name + ' <span style="color: #666;">(' + mRate + '%)</span></div>';
+                    });
+                    content += '</div>';
+                }
+                content += '</div>';
+            });
+            
+            content += '<p style="text-align: center; color: #999; margin-top: 40px;">LKT Tracker 2026 - Erstellt: ' + new Date().toLocaleString('de-DE') + '</p>';
+            content += '</body></html>';
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
+            showToast('PDF erstellt!');
+        }
+        
+        function exportAllMembersPDF() {
+            if (allMembersData.length === 0) { showToast('Keine Mitglieder', true); return; }
+            
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFillColor(26, 26, 46);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 215, 0);
+            doc.setFontSize(20);
+            doc.setFont(undefined, 'bold');
+            doc.text('LUMPENKAPELLE TALDORF', 105, 18, { align: 'center' });
+            doc.setFontSize(14);
+            doc.setTextColor(255, 255, 255);
+            doc.text('Mitglieder-Übersicht 2026', 105, 30, { align: 'center' });
+            
+            let y = 55;
+            doc.setFillColor(26, 26, 46);
+            doc.rect(15, y - 5, 180, 10, 'F');
+            doc.setTextColor(255, 215, 0);
+            doc.setFontSize(10);
+            doc.text('Name', 20, y);
+            doc.text('Dabei', 100, y);
+            doc.text('Gefehlt', 130, y);
+            doc.text('Quote', 165, y);
+            
+            y += 10;
+            doc.setFont(undefined, 'normal');
+            doc.setTextColor(0, 0, 0);
+            
+            const sortedMembers = allMembersData.map(m => {
+                const stats = allMemberStats[m.name] || { attended: 0, absent: 0 };
+                const total = stats.attended + stats.absent;
+                const rate = total > 0 ? Math.round(stats.attended / total * 100) : 0;
+                return { ...m, ...stats, rate };
+            }).sort((a, b) => b.attended - a.attended);
+            
+            sortedMembers.forEach((m, i) => {
+                if (y > 270) { doc.addPage(); y = 20; }
+                if (i % 2 === 0) { doc.setFillColor(245, 245, 245); doc.rect(15, y - 4, 180, 8, 'F'); }
+                doc.setTextColor(0, 0, 0);
+                doc.text(m.name.substring(0, 30), 20, y);
+                doc.setTextColor(74, 222, 128);
+                doc.text(String(m.attended), 105, y);
+                doc.setTextColor(239, 68, 68);
+                doc.text(String(m.absent), 135, y);
+                doc.setTextColor(0, 0, 0);
+                doc.text(m.rate + '%', 167, y);
+                y += 8;
+            });
+            
+            doc.save('LKT_Alle_Mitglieder_2026.pdf');
+            showToast('PDF erstellt!');
+        }
+        
+        function exportMemberPDF() {
+            if (!currentDetailMember) return;
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            doc.setFillColor(26, 26, 46);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 215, 0);
+            doc.setFontSize(20);
+            doc.setFont(undefined, 'bold');
+            doc.text('LUMPENKAPELLE TALDORF', 105, 18, { align: 'center' });
+            doc.setFontSize(14);
+            doc.setTextColor(255, 255, 255);
+            doc.text(currentDetailMember, 105, 30, { align: 'center' });
+            
+            const present = parseInt(document.getElementById('member-detail-present').textContent);
+            const absent = parseInt(document.getElementById('member-detail-absent').textContent);
+            const rate = document.getElementById('member-detail-rate').textContent;
+            
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(12);
+            let y = 55;
+            doc.text('Dabei: ' + present + '  |  Gefehlt: ' + absent + '  |  Quote: ' + rate, 105, y, { align: 'center' });
+            
+            doc.save('LKT_' + currentDetailMember.replace(/\s/g, '_') + '_Report.pdf');
+            showToast('PDF erstellt!');
+        }
+        
+        function exportAnzeigenPDF() {
+            if (allAnzeigenData.length === 0) { showToast('Keine Anzeigen', true); return; }
+            
+            showLoading();
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>LKT Strafanzeigen 2026</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }';
+            content += '.header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; padding: 30px; text-align: center; margin: -20px -20px 20px -20px; }';
+            content += '.header h1 { color: #ffd700; margin: 0; font-size: 28px; }';
+            content += '.header p { margin: 10px 0 0 0; }';
+            content += '.summary { display: flex; gap: 20px; justify-content: center; margin: 20px 0; }';
+            content += '.summary-box { background: #f3f4f6; padding: 15px 25px; border-radius: 10px; text-align: center; }';
+            content += '.summary-box .number { font-size: 28px; font-weight: bold; color: #dc2626; }';
+            content += '.summary-box .label { color: #666; font-size: 10px; }';
+            content += '.anzeige-card { border: 2px solid #ef4444; border-radius: 10px; padding: 15px; margin: 15px 0; page-break-inside: avoid; background: #fef2f2; }';
+            content += '.anzeige-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #fecaca; }';
+            content += '.anzeige-nummer { font-size: 14px; font-weight: bold; color: #dc2626; }';
+            content += '.anzeige-datum { color: #666; font-size: 10px; }';
+            content += '.anzeige-parteien { font-size: 13px; margin-bottom: 10px; }';
+            content += '.anzeige-parteien strong { color: #1e40af; }';
+            content += '.anzeige-tatbestand { background: white; padding: 10px; border-radius: 5px; margin: 10px 0; }';
+            content += '.anzeige-tatbestand-label { font-weight: bold; color: #374151; font-size: 10px; margin-bottom: 5px; }';
+            content += '.anzeige-tatbestand-text { color: #1f2937; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }';
+            content += '.anzeige-strafe { background: #dc2626; color: white; padding: 8px 12px; border-radius: 5px; display: inline-block; font-weight: bold; margin-top: 10px; }';
+            content += '.anzeige-status { display: inline-block; padding: 3px 8px; border-radius: 3px; font-size: 9px; margin-left: 10px; }';
+            content += '.status-offen { background: #fef3c7; color: #92400e; }';
+            content += '.status-erledigt { background: #d1fae5; color: #065f46; }';
+            content += '@media print { .anzeige-card, th { print-color-adjust: exact; -webkit-print-color-adjust: exact; } }';
+            content += '@page { margin: 15mm; }';
+            content += '</style></head><body>';
+            
+            content += '<div class="header">';
+            content += '<h1>⚖️ LUMPENKAPELLE TALDORF</h1>';
+            content += '<p>Strafanzeigen 2026</p>';
+            content += '</div>';
+            
+            // Zusammenfassung
+            const offene = allAnzeigenData.filter(a => a.status !== 'erledigt').length;
+            const erledigte = allAnzeigenData.filter(a => a.status === 'erledigt').length;
+            content += '<div class="summary">';
+            content += '<div class="summary-box"><div class="number">' + allAnzeigenData.length + '</div><div class="label">Gesamt</div></div>';
+            content += '<div class="summary-box"><div class="number" style="color: #f59e0b;">' + offene + '</div><div class="label">Offen</div></div>';
+            content += '<div class="summary-box"><div class="number" style="color: #10b981;">' + erledigte + '</div><div class="label">Erledigt</div></div>';
+            content += '</div>';
+            
+            // Alle Anzeigen
+            allAnzeigenData.forEach((a, i) => {
+                const statusClass = a.status === 'erledigt' ? 'status-erledigt' : 'status-offen';
+                const statusText = a.status === 'erledigt' ? 'Erledigt' : 'Offen';
+                
+                content += '<div class="anzeige-card">';
+                content += '<div class="anzeige-header">';
+                content += '<div class="anzeige-nummer">Anzeige #' + (i + 1) + ' <span class="anzeige-status ' + statusClass + '">' + statusText + '</span></div>';
+                content += '<div class="anzeige-datum">' + (a.datum || '') + '</div>';
+                content += '</div>';
+                
+                content += '<div class="anzeige-parteien">';
+                content += '👤 Melder: <strong>' + (a.melder || '-') + '</strong><br>';
+                content += '⚠️ Beschuldigter: <strong>' + (a.beschuldigter || '-') + '</strong>';
+                content += '</div>';
+                
+                content += '<div class="anzeige-tatbestand">';
+                content += '<div class="anzeige-tatbestand-label">📝 Tatbestand:</div>';
+                content += '<div class="anzeige-tatbestand-text">' + escapeHtml(a.tatbestand || '-') + '</div>';
+                content += '</div>';
+                
+                content += '<div class="anzeige-strafe">🍺 Strafe: ' + (a.strafe || '-') + '</div>';
+                content += '</div>';
+            });
+            
+            content += '<p style="text-align: center; color: #999; margin-top: 40px;">LKT Tracker 2026 - Erstellt: ' + new Date().toLocaleString('de-DE') + '</p>';
+            content += '</body></html>';
+            
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
+            showToast('PDF erstellt!');
+        }
+        
+        // Events-Liste als PDF exportieren
+        async function exportEventsPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            const pageWidth = doc.internal.pageSize.getWidth();
+            const pageHeight = doc.internal.pageSize.getHeight();
+            
+            // Farben
+            const primaryColor = [30, 41, 59];
+            const accentColor = [234, 179, 8];
+            const lightGray = [245, 247, 250];
+            const darkGray = [71, 85, 105];
+            
+            // Header
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, 0, pageWidth, 28, 'F');
+            
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('LUMPENKAPELLE TALDORF', pageWidth / 2, 12, { align: 'center' });
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            doc.text('Veranstaltungskalender Saison 2025', pageWidth / 2, 20, { align: 'center' });
+            
+            // Stand rechts
+            doc.setFontSize(8);
+            doc.setTextColor(...accentColor);
+            doc.text('Stand: ' + new Date().toLocaleDateString('de-DE'), pageWidth - 14, 25, { align: 'right' });
+            
+            let y = 34;
+            let currentWeek = '';
+            
+            // Sortieren
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            // Tabellen-Header
+            doc.setFillColor(...lightGray);
+            doc.rect(10, y, pageWidth - 20, 6, 'F');
+            doc.setFontSize(7);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(...darkGray);
+            doc.text('VERANSTALTUNG', 14, y + 4);
+            doc.text('DATUM', 90, y + 4);
+            doc.text('ZEIT', 120, y + 4);
+            doc.text('ORT', 145, y + 4);
+            y += 8;
+            
+            sortedEvents.forEach((event, index) => {
+                // Neue Seite wenn nötig
+                if (y > pageHeight - 15) {
+                    doc.addPage();
+                    y = 15;
+                    // Mini-Header
+                    doc.setFillColor(...lightGray);
+                    doc.rect(10, y - 5, pageWidth - 20, 6, 'F');
+                    doc.setFontSize(7);
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(...darkGray);
+                    doc.text('VERANSTALTUNG', 14, y - 1);
+                    doc.text('DATUM', 90, y - 1);
+                    doc.text('ZEIT', 120, y - 1);
+                    doc.text('ORT', 145, y - 1);
+                    y += 3;
+                }
+                
+                // Wochenend-Header (kompakt)
+                if (event.week && event.week !== currentWeek) {
+                    currentWeek = event.week;
+                    doc.setFillColor(...accentColor);
+                    doc.rect(10, y - 1, pageWidth - 20, 5, 'F');
+                    doc.setTextColor(...primaryColor);
+                    doc.setFontSize(8);
+                    doc.setFont(undefined, 'bold');
+                    doc.text(currentWeek.toUpperCase(), 14, y + 2.5);
+                    y += 6;
+                }
+                
+                // Zeile (alternierend)
+                if (index % 2 === 0) {
+                    doc.setFillColor(252, 252, 253);
+                    doc.rect(10, y - 2, pageWidth - 20, 6, 'F');
+                }
+                
+                // Akzent-Linie
+                doc.setFillColor(...accentColor);
+                doc.rect(10, y - 2, 1.5, 6, 'F');
+                
+                doc.setTextColor(...primaryColor);
+                doc.setFontSize(8);
+                doc.setFont(undefined, 'bold');
+                
+                // Name (max 40 Zeichen)
+                let name = event.name || '-';
+                if (name.length > 40) name = name.substring(0, 37) + '...';
+                doc.text(name, 14, y + 2);
+                
+                doc.setFont(undefined, 'normal');
+                doc.setTextColor(...darkGray);
+                doc.text(event.date || '-', 90, y + 2);
+                doc.text(event.time || '-', 120, y + 2);
+                
+                // Ort (max 30 Zeichen)
+                let ort = event.location || '-';
+                if (ort.length > 30) ort = ort.substring(0, 27) + '...';
+                doc.text(ort, 145, y + 2);
+                
+                y += 6;
+            });
+            
+            // Footer
+            doc.setFillColor(...primaryColor);
+            doc.rect(0, pageHeight - 8, pageWidth, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(7);
+            doc.text('Seite 1 | ' + eventsData.length + ' Veranstaltungen | Lumpenkapelle Taldorf', pageWidth / 2, pageHeight - 3, { align: 'center' });
+            
+            doc.save('LKT-Veranstaltungen-2025.pdf');
+            showToast('Events-PDF erstellt!');
+        }
+        
+        // Accordion Toggle
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const isOpen = content.classList.contains('open');
+            
+            // Toggle
+            if (isOpen) {
+                content.classList.remove('open');
+                header.classList.remove('active');
+            } else {
+                content.classList.add('open');
+                header.classList.add('active');
+            }
+        }
+        
+        // ============================================================
+        // UTILITY FUNCTIONS
+        // ============================================================
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + (isError ? 'error' : 'success');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+        
+        function showConfig() {
+            // Für alle: Daten aktualisieren
+            if (currentUser && currentUser.role === 'member') {
+                if (offlineQueue.length > 0) {
+                    if (navigator.onLine) {
+                        syncOfflineQueue();
+                    } else {
+                        showToast('Keine Internetverbindung - ' + offlineQueue.length + ' Aktion(en) warten', true);
+                    }
+                } else {
+                    refreshData();
+                    showToast('Daten synchronisiert!');
+                }
+            } else {
+                // Für Admin/Chef: auch nur Daten aktualisieren
+                refreshData();
+                showToast('Daten synchronisiert!');
+            }
+        }
+        
+        function getOfflineEvents() {
+            return [
+                { id: 'WE1-1', week: 'WE 1', date: '09.01.2026', name: 'Narrenbaumstellen Taldorf', location: 'LK Taldorf', time: '' },
+                { id: 'WE1-2', week: 'WE 1', date: '10.01.2026', name: 'Narrenbaumstellen Taldorf', location: 'LK Taldorf', time: '' },
+                { id: 'WE1-3', week: 'WE 1', date: '11.01.2026', name: 'Narrenbaumstellen Taldorf', location: 'LK Taldorf', time: '' },
+                { id: 'WE2-1', week: 'WE 2', date: '16.01.2026', name: 'Jugendball Bitzenhofen', location: 'NZ Bitzenhofen', time: '21:00' },
+                { id: 'WE2-2', week: 'WE 2', date: '16.01.2026', name: 'Elchball', location: 'MV Ettenkirch', time: '00:30' },
+                { id: 'WE2-3', week: 'WE 2', date: '17.01.2026', name: 'Umzug Neuravensburg', location: 'NZ Neuravensburg Bären', time: '13:30' },
+                { id: 'WE2-4', week: 'WE 2', date: '17.01.2026', name: 'Butzlumpa-Ball', location: 'LaJu KO/LK Butzlumpa', time: '21:00' },
+                { id: 'WE2-5', week: 'WE 2', date: '17.01.2026', name: 'Mädla-Ball', location: 'LK Leupolz', time: '23:00' },
+                { id: 'WE2-6', week: 'WE 2', date: '18.01.2026', name: 'Umzug Langenargen', location: 'NZ Dammglonker', time: '13:00' },
+                { id: 'WE3-1', week: 'WE 3', date: '23.01.2026', name: 'Urknall-Ball', location: 'LK Allgaier Urband', time: '20:00' },
+                { id: 'WE3-2', week: 'WE 3', date: '23.01.2026', name: 'Interne Veranstaltung', location: 'LK Fötzlesbrass', time: '00:00' },
+                { id: 'WE3-3', week: 'WE 3', date: '24.01.2026', name: 'Jubiläumsumzug Erbisreute', location: 'Erbisreuter Dorfnarren', time: '13:00' },
+                { id: 'WE3-4', week: 'WE 3', date: '25.01.2026', name: 'Narrensprung Kluftern', location: 'NZ Kluftern', time: '13:30' },
+                { id: 'WE4-1', week: 'WE 4', date: '30.01.2026', name: 'Zirkusball', location: 'LK Mecka', time: '23:30' },
+                { id: 'WE4-2', week: 'WE 4', date: '31.01.2026', name: 'Narrenbaumstellen Bitzenhofen', location: 'NZ Bitzenhofen', time: '13:00' },
+                { id: 'WE5-1', week: 'WE 5', date: '07.02.2026', name: 'Dämmerumzug Hergensweiler', location: 'NZ Federfuxer', time: '16:00' },
+                { id: 'WE5-2', week: 'WE 5', date: '07.02.2026', name: 'Aprés-Ski Ball', location: 'NZ Ettenkirch', time: '23:30' },
+                { id: 'WE5-3', week: 'WE 5', date: '08.02.2026', name: 'Umzug Meersburg', location: 'NZ Meersburg', time: '13:00' },
+                { id: 'HF-1', week: 'Hauptfasnet', date: '11.02.2026', name: 'Weiberball', location: 'Löwen Urnau', time: '22:00' },
+                { id: 'HF-2', week: 'Hauptfasnet', date: '12.02.2026', name: 'Golm', location: 'Berggasthof Golm', time: '11:00' },
+                { id: 'HF-3', week: 'Hauptfasnet', date: '13.02.2026', name: 'Kindergartenbefreiung', location: 'Taldorf', time: '09:00' },
+                { id: 'HF-4', week: 'Hauptfasnet', date: '13.02.2026', name: 'Schülerbefreiung', location: 'Wilhelmsschule RV', time: '10:00' },
+                { id: 'HF-5', week: 'Hauptfasnet', date: '13.02.2026', name: 'OWB', location: 'OWB Ravensburg', time: '11:30' },
+                { id: 'HF-6', week: 'Hauptfasnet', date: '13.02.2026', name: 'Narrenbaumstellen Bavendorf', location: 'NV Bavendorf', time: '14:00' },
+                { id: 'HF-7', week: 'Hauptfasnet', date: '14.02.2026', name: 'Narrensprung Aitrach', location: 'NZ Aitrach', time: '13:30' },
+                { id: 'HF-8', week: 'Hauptfasnet', date: '14.02.2026', name: 'Ball Aitrach', location: 'NZ Aitrach', time: '23:30' },
+                { id: 'HF-9', week: 'Hauptfasnet', date: '15.02.2026', name: 'Narrensprung Brochenzell', location: 'NZ Brochenzell', time: '14:00' },
+                { id: 'HF-10', week: 'Hauptfasnet', date: '16.02.2026', name: 'Rosenmontagssprung Fulda', location: 'Wolkenkratzer Fulda', time: '13:30' },
+                { id: 'HF-11', week: 'Hauptfasnet', date: '17.02.2026', name: 'Heimfahrt Fulda', location: '', time: '' },
+            ];
+        }
+        
+        // ============================================================
+        // ROLLEN VERWALTUNG
+        // ============================================================
+        let rollenData = [];
+        let currentEditRolleId = null;
+        
+        async function loadRollen() {
+            try {
+                const result = await apiGet('getRollen');
+                rollenData = result.rollen || [];
+                renderRollenList();
+            } catch (e) { console.log('Rollen laden Fehler:', e); }
+        }
+        
+        function renderRollenList() {
+            const container = document.getElementById('rollen-list');
+            if (!container) return;
+            
+            if (rollenData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Rollen definiert</div>';
+                return;
+            }
+            
+            let html = '';
+            rollenData.forEach(rolle => {
+                const isSystem = ['ROLE-ADMIN', 'ROLE-MITGLIED'].includes(rolle.id);
+                const perms = [];
+                if (rolle.isAdmin) perms.push('Admin');
+                if (rolle.canManageMembers) perms.push('Mitglieder');
+                if (rolle.canManageEvents) perms.push('Events');
+                if (rolle.canManageAnzeigen) perms.push('Anzeigen');
+                
+                html += '<div class="rolle-item ' + (isSystem ? 'system-rolle' : '') + '">';
+                html += '<div><div class="rolle-name">' + rolle.name + (isSystem ? ' 🔒' : '') + '</div>';
+                html += '<div class="rolle-perms">' + (perms.length > 0 ? perms.join(', ') : 'Basis-Rechte') + '</div></div>';
+                html += '<div>';
+                html += '<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" onclick="editRolle(\'' + rolle.id + '\')">✏️</button>';
+                if (!isSystem) html += ' <button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteRolleConfirm(\'' + rolle.id + '\')">🗑️</button>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function showAddRolleModal() {
+            currentEditRolleId = null;
+            document.getElementById('rolle-modal-title').textContent = 'Neue Rolle erstellen';
+            document.getElementById('rolle-name-input').value = '';
+            // Reset alle Checkboxen
+            document.getElementById('perm-viewAllMembers').checked = false;
+            document.getElementById('perm-viewAllAttendance').checked = false;
+            document.getElementById('perm-viewOwnRegister').checked = true;
+            document.getElementById('perm-viewAllRegisterZusagen').checked = false;
+            document.getElementById('perm-viewStats').checked = false;
+            document.getElementById('perm-viewMemberDetails').checked = false;
+            document.getElementById('perm-postNews').checked = false;
+            document.getElementById('perm-manageEvents').checked = false;
+            document.getElementById('perm-manageMembers').checked = false;
+            document.getElementById('perm-manageRoles').checked = false;
+            document.getElementById('perm-manageAnzeigen').checked = false;
+            document.getElementById('perm-createForumCategories').checked = false;
+            document.getElementById('perm-isAdmin').checked = false;
+            document.getElementById('perm-isRegisterleiter').checked = false;
+            document.getElementById('rolle-modal').classList.add('active');
+        }
+        
+        function editRolle(rollenId) {
+            const rolle = rollenData.find(r => r.id === rollenId);
+            if (!rolle) return;
+            
+            currentEditRolleId = rollenId;
+            document.getElementById('rolle-modal-title').textContent = 'Rolle bearbeiten: ' + rolle.name;
+            document.getElementById('rolle-name-input').value = rolle.name;
+            document.getElementById('perm-viewAllMembers').checked = rolle.canViewAllMembers;
+            document.getElementById('perm-viewAllAttendance').checked = rolle.canViewAllAttendance;
+            document.getElementById('perm-viewOwnRegister').checked = rolle.canViewOwnRegister;
+            document.getElementById('perm-viewAllRegisterZusagen').checked = rolle.canViewAllRegisterZusagen || false;
+            document.getElementById('perm-viewStats').checked = rolle.canViewStats || false;
+            document.getElementById('perm-viewMemberDetails').checked = rolle.canViewMemberDetails || false;
+            document.getElementById('perm-postNews').checked = rolle.canPostNews || false;
+            document.getElementById('perm-manageEvents').checked = rolle.canManageEvents;
+            document.getElementById('perm-manageMembers').checked = rolle.canManageMembers;
+            document.getElementById('perm-manageRoles').checked = rolle.canManageRoles;
+            document.getElementById('perm-manageAnzeigen').checked = rolle.canManageAnzeigen;
+            document.getElementById('perm-createForumCategories').checked = rolle.canCreateForumCategories;
+            document.getElementById('perm-isAdmin').checked = rolle.isAdmin;
+            document.getElementById('perm-isRegisterleiter').checked = rolle.isRegisterleiter || false;
+            document.getElementById('rolle-modal').classList.add('active');
+        }
+        
+        function closeRolleModal() {
+            document.getElementById('rolle-modal').classList.remove('active');
+            currentEditRolleId = null;
+        }
+        
+        async function saveRolle() {
+            const name = document.getElementById('rolle-name-input').value.trim();
+            if (!name) { showToast('Name erforderlich', true); return; }
+            
+            const rolle = {
+                name: name,
+                canViewAllMembers: document.getElementById('perm-viewAllMembers').checked,
+                canViewAllAttendance: document.getElementById('perm-viewAllAttendance').checked,
+                canViewOwnRegister: document.getElementById('perm-viewOwnRegister').checked,
+                canViewAllRegisterZusagen: document.getElementById('perm-viewAllRegisterZusagen').checked,
+                canViewStats: document.getElementById('perm-viewStats').checked,
+                canViewMemberDetails: document.getElementById('perm-viewMemberDetails').checked,
+                canPostNews: document.getElementById('perm-postNews').checked,
+                canManageEvents: document.getElementById('perm-manageEvents').checked,
+                canManageMembers: document.getElementById('perm-manageMembers').checked,
+                canManageRoles: document.getElementById('perm-manageRoles').checked,
+                canManageAnzeigen: document.getElementById('perm-manageAnzeigen').checked,
+                canCreateForumCategories: document.getElementById('perm-createForumCategories').checked,
+                isAdmin: document.getElementById('perm-isAdmin').checked,
+                isRegisterleiter: document.getElementById('perm-isRegisterleiter').checked
+            };
+            
+            showLoading();
+            try {
+                let result;
+                if (currentEditRolleId) {
+                    result = await apiPost({ action: 'updateRolle', rollenId: currentEditRolleId, rolle: rolle });
+                } else {
+                    result = await apiPost({ action: 'addRolle', rolle: rolle });
+                }
+                if (result.error) { showToast(result.error, true); }
+                else { showToast(result.message); closeRolleModal(); await loadRollen(); }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteRolleConfirm(rollenId) {
+            const rolle = rollenData.find(r => r.id === rollenId);
+            if (!confirm('Rolle "' + rolle.name + '" wirklich löschen? Mitglieder mit dieser Rolle werden zu "Mitglied" zurückgesetzt.')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteRolle', rollenId: rollenId });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadRollen(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // REGISTER-ANFRAGEN
+        // ============================================================
+        let registerAnfragenData = [];
+        
+        async function loadRegisterAnfragen() {
+            try {
+                const result = await apiGet('getRegisterAnfragen');
+                registerAnfragenData = result.anfragen || [];
+                renderRegisterAnfragen();
+                // Badge aktualisieren
+                const badge = document.getElementById('anfragen-count');
+                if (badge) badge.textContent = registerAnfragenData.length;
+            } catch (e) { console.log('Anfragen laden Fehler:', e); }
+        }
+        
+        function renderRegisterAnfragen() {
+            const container = document.getElementById('register-anfragen-list');
+            if (!container) return;
+            
+            if (registerAnfragenData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine offenen Anfragen</div>';
+                return;
+            }
+            
+            let html = '';
+            registerAnfragenData.forEach(anfrage => {
+                html += '<div class="anfrage-item">';
+                html += '<div class="anfrage-header"><strong>' + anfrage.memberName + '</strong></div>';
+                html += '<div class="anfrage-change">🎵 ' + (anfrage.altesRegister || 'Kein Register') + ' → ' + anfrage.neuesRegister + '</div>';
+                html += '<div class="anfrage-actions">';
+                html += '<button class="btn btn-primary" onclick="handleAnfrage(\'' + anfrage.id + '\', true)">✓ Genehmigen</button>';
+                html += '<button class="btn btn-danger" onclick="handleAnfrage(\'' + anfrage.id + '\', false)">✗ Ablehnen</button>';
+                html += '</div></div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        async function handleAnfrage(requestId, approved) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'handleRegisterRequest', requestId: requestId, approved: approved });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadRegisterAnfragen(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // FORUM-BEREICHE
+        // ============================================================
+        let forumBereicheData = [];
+        let forumBereiche = []; // Alias für updateUnreadBadges
+        let currentForumBereichId = 'FORUM-ALLGEMEIN';
+        
+        async function loadForumBereiche() {
+            try {
+                const result = await apiGet('getForumBereiche');
+                forumBereicheData = result.bereiche || [];
+                forumBereiche = forumBereicheData; // Für updateUnreadBadges
+                renderForumBereicheList();
+                renderForumTabs();
+                
+                // Lade Posts aller Bereiche für Badges (im Hintergrund)
+                loadAllForumPostsForBadges();
+            } catch (e) { console.log('Forum-Bereiche laden Fehler:', e); }
+        }
+        
+        // Lade Posts aller Bereiche für Badge-Berechnung
+        async function loadAllForumPostsForBadges() {
+            if (!forumBereicheData || forumBereicheData.length === 0) return;
+            
+            for (const bereich of forumBereicheData) {
+                try {
+                    const result = await apiGet('getBrettPosts', { bereichId: bereich.id });
+                    const posts = result.posts || [];
+                    saveToCache('brett_' + bereich.id, posts);
+                } catch (e) { /* ignore */ }
+            }
+            
+            updateUnreadBadges();
+        }
+        
+        function renderForumBereicheList() {
+            const container = document.getElementById('forum-bereiche-list');
+            if (!container) return;
+            
+            if (forumBereicheData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Bereiche</div>';
+                return;
+            }
+            
+            let html = '';
+            forumBereicheData.forEach(bereich => {
+                const isSystem = bereich.id === 'FORUM-ALLGEMEIN';
+                html += '<div class="bereich-item">';
+                html += '<div><strong>' + bereich.name + '</strong>';
+                html += '<div class="bereich-typ">' + getBereichTypLabel(bereich.typ) + '</div></div>';
+                if (!isSystem) html += '<button class="btn btn-danger" style="padding: 0.25rem 0.5rem;" onclick="deleteForumBereichConfirm(\'' + bereich.id + '\')">🗑️</button>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function getBereichTypLabel(typ) {
+            const labels = { allgemein: '🌍 Allgemein', register: '🎵 Register', admin: '🔧 Admin', custom: '📁 Benutzerdefiniert' };
+            return labels[typ] || typ;
+        }
+        
+        function renderForumTabs() {
+            // Für Mitglieder-Brett
+            const memberContainer = document.getElementById('forum-tabs-member');
+            // Für Admin-Brett
+            const adminContainer = document.getElementById('forum-tabs-admin');
+            
+            if (!memberContainer && !adminContainer) return;
+            
+            const permissions = currentUser.permissions || {};
+            
+            let html = '';
+            forumBereicheData.forEach(bereich => {
+                // Nur Admin-Bereich filtern - alle anderen Bereiche für alle sichtbar
+                if (bereich.typ === 'admin' && !permissions.isAdmin) return;
+                
+                const isActive = bereich.id === currentForumBereichId ? 'active' : '';
+                const isRegister = bereich.typ === 'register' ? 'register-tab' : '';
+                html += '<button class="forum-tab forum-bereich-btn ' + isActive + ' ' + isRegister + '" data-bereich-id="' + bereich.id + '" onclick="selectForumBereich(\'' + bereich.id + '\')">';
+                html += '<span class="bereich-badge hidden" style="position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center;">0</span>';
+                html += bereich.name;
+                html += '</button>';
+            });
+            
+            if (memberContainer) memberContainer.innerHTML = html;
+            if (adminContainer) adminContainer.innerHTML = html;
+            
+            // Badges aktualisieren
+            updateUnreadBadges();
+        }
+        
+        function selectForumBereich(bereichId) {
+            currentForumBereichId = bereichId;
+            renderForumTabs();
+            loadBrettPosts(currentUser.role === 'gericht' ? 'gericht' : 'member');
+            
+            // Als gelesen markieren
+            markBereichAsRead(bereichId);
+        }
+        
+        async function addNewForumBereich() {
+            const name = document.getElementById('new-bereich-name').value.trim();
+            const typ = document.getElementById('new-bereich-typ').value;
+            
+            if (!name) { showToast('Name erforderlich', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'addForumBereich', name: name, typ: typ, erstelltVon: currentUser.name });
+                if (result.error) showToast(result.error, true);
+                else { 
+                    showToast(result.message); 
+                    document.getElementById('new-bereich-name').value = '';
+                    await loadForumBereiche(); 
+                }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        async function deleteForumBereichConfirm(bereichId) {
+            const bereich = forumBereicheData.find(b => b.id === bereichId);
+            if (!confirm('Bereich "' + bereich.name + '" wirklich löschen? Posts werden zum Allgemein-Bereich verschoben.')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteForumBereich', bereichId: bereichId });
+                if (result.error) showToast(result.error, true);
+                else { showToast(result.message); await loadForumBereiche(); }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // REGISTER-WECHSEL FÜR MITGLIEDER
+        // ============================================================
+        async function requestRegisterChange(neuesRegisterId) {
+            if (!currentUser.memberId) { showToast('Fehler: Keine MemberId', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'requestRegisterChange', memberId: currentUser.memberId, neuesRegisterId: neuesRegisterId });
+                if (result.error) showToast(result.error, true);
+                else if (result.approved) {
+                    showToast('Register geändert!');
+                    currentUser.registerId = neuesRegisterId;
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    populateProfileSelects();
+                } else {
+                    showToast('Anfrage gesendet - Admin muss bestätigen');
+                }
+            } catch (e) { showToast('Fehler', true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // WOCHENEND-ÜBERSICHT
+        // ============================================================
+        let weekendAttendanceData = {};
+        
+        function populateWeekendSelect() {
+            const select = document.getElementById('weekend-select');
+            if (!select) return;
+            
+            // Sammle alle Wochen aus Events
+            const weeks = new Set();
+            eventsData.forEach(e => {
+                if (e.week) weeks.add(e.week);
+            });
+            
+            let html = '<option value="">-- Wochenende wählen --</option>';
+            Array.from(weeks).sort().forEach(week => {
+                html += '<option value="' + week + '">' + week + '</option>';
+            });
+            select.innerHTML = html;
+        }
+        
+        async function loadWeekendOverview() {
+            const week = document.getElementById('weekend-select').value;
+            const container = document.getElementById('weekend-overview');
+            const exportBtn = document.getElementById('weekend-export-btn');
+            
+            if (!week) {
+                container.innerHTML = '';
+                if (exportBtn) exportBtn.classList.add('hidden');
+                return;
+            }
+            
+            if (exportBtn) exportBtn.classList.remove('hidden');
+            
+            // Events für dieses Wochenende filtern
+            const weekEvents = eventsData.filter(e => e.week === week);
+            
+            if (weekEvents.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Auftritte für dieses Wochenende</div>';
+                if (exportBtn) exportBtn.classList.add('hidden');
+                return;
+            }
+            
+            // SOFORT: Zeige was wir haben (aus Cache)
+            const cachedWeekendData = getFromCache('weekendAtt_' + week);
+            if (cachedWeekendData) {
+                weekendAttendanceData = { ...weekendAttendanceData, ...cachedWeekendData };
+                renderWeekendOverview(weekEvents, week);
+            } else {
+                container.innerHTML = '<div class="empty-state">Lade Daten...</div>';
+            }
+            
+            // DANN: Im Hintergrund frische Daten laden (PARALLEL!)
+            try {
+                const promises = weekEvents.map(event => 
+                    apiGet('getEventAttendance', { eventId: event.id })
+                        .then(result => ({ eventId: event.id, result }))
+                        .catch(e => ({ eventId: event.id, result: { attendance: {} } }))
+                );
+                
+                const results = await Promise.all(promises);
+                
+                const newData = {};
+                results.forEach(({ eventId, result }) => {
+                    const attObj = result.attendance || {};
+                    const attArray = [];
+                    for (const name in attObj) {
+                        attArray.push({
+                            name: name,
+                            status: attObj[name] ? 'anwesend' : 'abwesend',
+                            comment: ''
+                        });
+                    }
+                    weekendAttendanceData[eventId] = attArray;
+                    newData[eventId] = attArray;
+                });
+                
+                // Cache speichern
+                saveToCache('weekendAtt_' + week, newData);
+                
+                renderWeekendOverview(weekEvents, week);
+            } catch (e) {
+                console.log('Weekend attendance error:', e);
+            }
+        }
+        
+        function renderWeekendOverview(weekEvents, week) {
+            const container = document.getElementById('weekend-overview');
+            
+            // Gesamtstatistik berechnen
+            let totalPresent = 0, totalAbsent = 0, totalZugesagt = 0;
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                if (Array.isArray(att)) {
+                    att.forEach(a => {
+                        if (a.status === 'anwesend') totalPresent++;
+                        else if (a.status === 'abwesend') totalAbsent++;
+                    });
+                }
+                // Zusagen zählen (die nicht bereits anwesend/abwesend sind)
+                const eventZusagen = zusagenData[event.id] || {};
+                const attNames = att.map(a => a.name.toLowerCase());
+                Object.keys(eventZusagen).forEach(name => {
+                    if (eventZusagen[name] && !attNames.includes(name.toLowerCase())) {
+                        totalZugesagt++;
+                    }
+                });
+            });
+            
+            let html = '';
+            
+            // Zusammenfassung
+            html += '<div class="weekend-summary">';
+            html += '<div class="stat-box"><div class="number" style="color: var(--accent-green);">' + totalPresent + '</div><div class="label">Dabei</div></div>';
+            html += '<div class="stat-box"><div class="number" style="color: var(--accent-blue);">' + totalZugesagt + '</div><div class="label">' + (appSettings.qrScannerEnabled ? 'Zugesagt' : 'Bin da') + '</div></div>';
+            html += '<div class="stat-box"><div class="number" style="color: var(--accent-red);">' + totalAbsent + '</div><div class="label">Abgesagt</div></div>';
+            html += '<div class="stat-box"><div class="number">' + weekEvents.length + '</div><div class="label">Auftritte</div></div>';
+            html += '</div>';
+            
+            // Events anzeigen
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                const present = att.filter(a => a.status === 'anwesend');
+                const absent = att.filter(a => a.status === 'abwesend');
+                
+                // Zusagen für dieses Event
+                const eventZusagen = zusagenData[event.id] || {};
+                const attNames = att.map(a => a.name.toLowerCase());
+                const zugesagt = Object.keys(eventZusagen).filter(name => eventZusagen[name] && !attNames.includes(name.toLowerCase()));
+                
+                // Register-Statistik
+                const registerStats = {};
+                registerData.forEach(r => {
+                    registerStats[r.id] = { name: r.name, present: 0, zugesagt: 0, absent: 0, total: 0 };
+                });
+                registerStats['none'] = { name: 'Ohne Register', present: 0, zugesagt: 0, absent: 0, total: 0 };
+                
+                // Mitglieder pro Register zählen
+                allMembersData.forEach(m => {
+                    const regId = m.registerId || 'none';
+                    if (registerStats[regId]) registerStats[regId].total++;
+                });
+                
+                // Anwesende pro Register zählen
+                present.forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].present++;
+                });
+                
+                // Zugesagte pro Register zählen
+                zugesagt.forEach(name => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].zugesagt++;
+                });
+                
+                // Abgesagte pro Register zählen
+                absent.forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].absent++;
+                });
+                
+                html += '<div class="weekend-event-card" onclick="showWeekendEventDetail(\'' + event.id + '\')">';
+                html += '<div class="event-name">' + event.name + '</div>';
+                html += '<div class="event-info">📍 ' + (event.location || '-') + ' | 🕐 ' + (event.time || '-') + ' | ' + (event.date || '') + '</div>';
+                html += '<div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">';
+                html += '<span style="color: var(--accent-green);">✓ ' + present.length + '</span>';
+                html += '<span style="color: var(--accent-blue);">📅 ' + zugesagt.length + '</span>';
+                html += '<span style="color: var(--accent-red);">✗ ' + absent.length + '</span>';
+                html += '</div>';
+                
+                // Register-Balken (Anwesend + Zugesagt)
+                html += '<div class="register-bars">';
+                Object.values(registerStats).filter(r => r.total > 0).forEach(r => {
+                    const confirmed = r.present + r.zugesagt;
+                    const percent = r.total > 0 ? Math.round(confirmed / r.total * 100) : 0;
+                    html += '<div class="register-bar">';
+                    html += '<div class="bar-label">' + r.name + '</div>';
+                    html += '<div class="bar-container"><div class="bar-fill" style="width: ' + percent + '%;"></div></div>';
+                    html += '<div class="bar-count">' + confirmed + '/' + r.total + (r.absent > 0 ? ' <span style="color:var(--accent-red);">(-' + r.absent + ')</span>' : '') + '</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+                html += '</div>';
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function showWeekendEventDetail(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            const att = weekendAttendanceData[eventId] || [];
+            const present = att.filter(a => a.status === 'anwesend');
+            const absent = att.filter(a => a.status === 'abwesend');
+            
+            // Zusagen für dieses Event
+            const eventZusagen = zusagenData[eventId] || {};
+            const attNames = att.map(a => a.name.toLowerCase());
+            const zugesagt = Object.keys(eventZusagen).filter(name => eventZusagen[name] && !attNames.includes(name.toLowerCase()));
+            
+            // Unbekannte Mitglieder (ohne Eintrag und ohne Zusage)
+            const knownNames = [...attNames, ...zugesagt.map(n => n.toLowerCase())];
+            const unknown = allMembersData.filter(m => !knownNames.includes(m.name.toLowerCase()));
+            
+            document.getElementById('weekend-event-title').textContent = event.name;
+            
+            // Stats
+            const zusagenLabel = appSettings.qrScannerEnabled ? 'zugesagt' : 'bin da';
+            let statsHtml = '<div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">';
+            statsHtml += '<span style="color: var(--accent-green); font-size: 1.2rem;">✓ ' + present.length + ' dabei</span>';
+            statsHtml += '<span style="color: var(--accent-blue); font-size: 1.2rem;">📅 ' + zugesagt.length + ' ' + zusagenLabel + '</span>';
+            statsHtml += '<span style="color: var(--accent-red); font-size: 1.2rem;">✗ ' + absent.length + ' abgesagt</span>';
+            statsHtml += '<span style="color: var(--text-secondary); font-size: 1.2rem;">? ' + unknown.length + ' offen</span>';
+            statsHtml += '</div>';
+            document.getElementById('weekend-event-stats').innerHTML = statsHtml;
+            
+            // Register-Statistik
+            const registerStats = {};
+            registerData.forEach(r => {
+                registerStats[r.id] = { name: r.name, present: [], zugesagt: [], absent: [], unknown: [] };
+            });
+            registerStats['none'] = { name: 'Ohne Register', present: [], zugesagt: [], absent: [], unknown: [] };
+            
+            // Mitglieder nach Register gruppieren
+            present.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regId = member ? (member.registerId || 'none') : 'none';
+                if (registerStats[regId]) registerStats[regId].present.push(a.name);
+            });
+            
+            zugesagt.forEach(name => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                const regId = member ? (member.registerId || 'none') : 'none';
+                if (registerStats[regId]) registerStats[regId].zugesagt.push(name);
+            });
+            
+            absent.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regId = member ? (member.registerId || 'none') : 'none';
+                if (registerStats[regId]) registerStats[regId].absent.push({ name: a.name, comment: a.comment });
+            });
+            
+            unknown.forEach(m => {
+                const regId = m.registerId || 'none';
+                if (registerStats[regId]) registerStats[regId].unknown.push(m.name);
+            });
+            
+            let regHtml = '';
+            Object.values(registerStats).filter(r => r.present.length + r.zugesagt.length + r.absent.length + r.unknown.length > 0).forEach(r => {
+                const confirmed = r.present.length + r.zugesagt.length;
+                const total = confirmed + r.absent.length + r.unknown.length;
+                regHtml += '<div style="margin-bottom: 0.75rem; padding: 0.5rem; background: var(--bg-input); border-radius: 8px;">';
+                regHtml += '<strong>' + r.name + '</strong>: ';
+                regHtml += '<span style="color: var(--accent-green);">' + r.present.length + '✓</span> / ';
+                regHtml += '<span style="color: var(--accent-blue);">' + r.zugesagt.length + '📅</span> / ';
+                regHtml += '<span style="color: var(--accent-red);">' + r.absent.length + '✗</span> / ';
+                regHtml += '<span style="color: var(--text-secondary);">' + r.unknown.length + '?</span>';
+                regHtml += ' (von ' + total + ')';
+                regHtml += '</div>';
+            });
+            document.getElementById('weekend-event-registers').innerHTML = regHtml || '<div class="empty-state">Keine Register-Daten</div>';
+            
+            // Mitglieder-Liste
+            let membersHtml = '';
+            
+            // Anwesende
+            present.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regName = member && member.registerId ? (registerData.find(r => r.id === member.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row anwesend">';
+                membersHtml += '<div><strong>' + a.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '') + '</div>';
+                membersHtml += '<div class="status-icon">✓</div>';
+                membersHtml += '</div>';
+            });
+            
+            // Zugesagte
+            zugesagt.forEach(name => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                const regName = member && member.registerId ? (registerData.find(r => r.id === member.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row" style="border-left: 3px solid var(--accent-blue);">';
+                membersHtml += '<div><strong>' + name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '') + '</div>';
+                membersHtml += '<div class="status-icon" style="color: var(--accent-blue);">📅</div>';
+                membersHtml += '</div>';
+            });
+            
+            // Abwesende
+            absent.forEach(a => {
+                const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                const regName = member && member.registerId ? (registerData.find(r => r.id === member.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row abwesend">';
+                membersHtml += '<div><strong>' + a.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '');
+                if (a.comment) membersHtml += '<br><span style="font-size: 0.8rem; color: var(--text-secondary);">💬 ' + escapeHtml(a.comment) + '</span>';
+                membersHtml += '</div>';
+                membersHtml += '<div class="status-icon">✗</div>';
+                membersHtml += '</div>';
+            });
+            
+            // Unbekannte
+            unknown.forEach(m => {
+                const regName = m.registerId ? (registerData.find(r => r.id === m.registerId)?.name || '') : '';
+                membersHtml += '<div class="member-attendance-row unknown">';
+                membersHtml += '<div><strong>' + m.name + '</strong>' + (regName ? ' <span style="color: var(--text-secondary); font-size: 0.8rem;">(' + regName + ')</span>' : '') + '</div>';
+                membersHtml += '<div class="status-icon">?</div>';
+                membersHtml += '</div>';
+            });
+            
+            document.getElementById('weekend-event-members').innerHTML = membersHtml || '<div class="empty-state">Keine Mitglieder</div>';
+            
+            document.getElementById('weekend-event-modal').classList.add('active');
+        }
+        
+        function closeWeekendEventModal() {
+            document.getElementById('weekend-event-modal').classList.remove('active');
+        }
+        
+        // ============================================================
+        // EVENT BEARBEITEN
+        // ============================================================
+        
+        function renderEventsManageList() {
+            const container = document.getElementById('events-manage-list');
+            if (!container) return;
+            
+            // Wochen-Dropdown befüllen
+            populateWeekSelects();
+            
+            if (eventsData.length === 0) {
+                container.innerHTML = '<div class="empty-state">Keine Events</div>';
+                return;
+            }
+            
+            // Sortiere Events nach Datum
+            const sortedEvents = [...eventsData].sort((a, b) => {
+                if (!a.date || !b.date) return 0;
+                const [d1, m1, y1] = a.date.split('.');
+                const [d2, m2, y2] = b.date.split('.');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+            
+            let html = '';
+            sortedEvents.forEach(event => {
+                html += '<div class="event-manage-item" style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem; border-bottom: 1px solid var(--border-color);">';
+                html += '<div><strong>' + event.name + '</strong><br><span style="font-size: 0.8rem; color: var(--text-secondary);">' + (event.date || '') + ' | ' + (event.week || '') + '</span></div>';
+                html += '<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem;" onclick="openEventEditModal(\'' + event.id + '\')">✏️</button>';
+                html += '</div>';
+            });
+            container.innerHTML = html;
+        }
+        
+        function openEventEditModal(eventId) {
+            const event = eventsData.find(e => e.id === eventId);
+            if (!event) return;
+            
+            // Wochen-Select befüllen
+            populateWeekSelects();
+            
+            document.getElementById('edit-event-id').value = eventId;
+            document.getElementById('edit-event-name').value = event.name || '';
+            document.getElementById('edit-event-week').value = event.week || '';
+            document.getElementById('edit-event-date').value = germanToDateInput(event.date) || '';
+            document.getElementById('edit-event-location').value = event.location || '';
+            document.getElementById('edit-event-time').value = event.time || '';
+            
+            document.getElementById('event-edit-modal').classList.add('active');
+        }
+        
+        function closeEventEditModal() {
+            document.getElementById('event-edit-modal').classList.remove('active');
+        }
+        
+        async function saveEventEdit() {
+            const eventId = document.getElementById('edit-event-id').value;
+            
+            // Datum konvertieren
+            const dateInput = document.getElementById('edit-event-date').value;
+            const dateGerman = dateInputToGerman(dateInput);
+            
+            const eventData = {
+                name: document.getElementById('edit-event-name').value.trim(),
+                week: document.getElementById('edit-event-week').value.trim(),
+                date: dateGerman,
+                location: document.getElementById('edit-event-location').value.trim(),
+                time: document.getElementById('edit-event-time').value.trim()
+            };
+            
+            if (!eventData.name) { showToast('Name erforderlich', true); return; }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'updateEvent', eventId: eventId, event: eventData });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Event aktualisiert!');
+                    closeEventEditModal();
+                    await refreshData();
+                    populateWeekSelects();
+                    renderEventsManageList();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function deleteEventFromModal() {
+            const eventId = document.getElementById('edit-event-id').value;
+            const event = eventsData.find(e => e.id === eventId);
+            if (!confirm('Event "' + event.name + '" wirklich löschen?')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'deleteEvent', eventId: eventId });
+                if (result.error) showToast(result.error, true);
+                else {
+                    showToast('Event gelöscht!');
+                    closeEventEditModal();
+                    await refreshData();
+                    renderEventsManageList();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // PUSH BENACHRICHTIGUNGEN
+        // ============================================================
+        
+        let pushSubscription = null;
+        let notificationsEnabled = false;
+        
+        // VAPID Public Key wird vom Server geladen
+        let VAPID_PUBLIC_KEY = null;
+        
+        async function initPushNotifications() {
+            // Prüfe ob Push unterstützt wird
+            if (!('Notification' in window)) {
+                document.getElementById('push-not-supported')?.classList.remove('hidden');
+                document.getElementById('push-settings-container')?.classList.add('hidden');
+                return;
+            }
+            
+            // VAPID Key vom Server laden (einmalig)
+            if (!VAPID_PUBLIC_KEY) {
+                try {
+                    const cached = localStorage.getItem('lkt-vapid-key');
+                    if (cached) {
+                        VAPID_PUBLIC_KEY = cached;
+                    } else {
+                        const result = await apiGet('getVapidKey');
+                        if (result.publicKey) {
+                            VAPID_PUBLIC_KEY = result.publicKey;
+                            localStorage.setItem('lkt-vapid-key', VAPID_PUBLIC_KEY);
+                        }
+                    }
+                } catch (e) {
+                    console.log('Could not load VAPID key:', e);
+                }
+            }
+            
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                // Fallback auf lokale Benachrichtigungen
+                initLocalNotifications();
+                return;
+            }
+            
+            // Lade lokale Einstellungen
+            notificationsEnabled = localStorage.getItem('lkt-notifications-enabled') === 'true';
+            
+            if (Notification.permission === 'granted' && notificationsEnabled) {
+                document.getElementById('push-enable-btn')?.classList.add('hidden');
+                document.getElementById('push-settings')?.classList.remove('hidden');
+                loadPushSettingsLocal();
+                
+                // Service Worker registrieren und Subscription prüfen
+                await checkPushSubscription();
+            }
+        }
+        
+        function initLocalNotifications() {
+            notificationsEnabled = localStorage.getItem('lkt-notifications-enabled') === 'true';
+            
+            if (Notification.permission === 'granted' && notificationsEnabled) {
+                document.getElementById('push-enable-btn')?.classList.add('hidden');
+                document.getElementById('push-settings')?.classList.remove('hidden');
+                loadPushSettingsLocal();
+                checkUpcomingEvents();
+            }
+        }
+        
+        async function enablePushNotifications() {
+            try {
+                if (!('Notification' in window)) {
+                    showToast('Benachrichtigungen werden nicht unterstützt', true);
+                    return;
+                }
+                
+                // Berechtigung anfordern
+                let permission = Notification.permission;
+                if (permission === 'default') {
+                    permission = await Notification.requestPermission();
+                }
+                
+                if (permission !== 'granted') {
+                    showToast('Benachrichtigungen wurden abgelehnt', true);
+                    return;
+                }
+                
+                notificationsEnabled = true;
+                localStorage.setItem('lkt-notifications-enabled', 'true');
+                
+                // Versuche Web Push zu registrieren
+                if ('serviceWorker' in navigator && 'PushManager' in window) {
+                    await registerPushSubscription();
+                }
+                
+                showToast('Benachrichtigungen aktiviert!');
+                document.getElementById('push-enable-btn').classList.add('hidden');
+                document.getElementById('push-settings').classList.remove('hidden');
+                loadPushSettingsLocal();
+                
+                // Test-Benachrichtigung
+                new Notification('🎺 LKT Tracker', {
+                    body: 'Benachrichtigungen wurden aktiviert!',
+                    icon: 'icon-192.png',
+                    tag: 'lkt-test'
+                });
+                
+            } catch (e) {
+                console.error('Notification error:', e);
+                showToast('Fehler: ' + e.message, true);
+            }
+        }
+        
+        async function registerPushSubscription() {
+            try {
+                // Service Worker registrieren (falls noch nicht geschehen)
+                let registration = await navigator.serviceWorker.getRegistration();
+                if (!registration) {
+                    registration = await navigator.serviceWorker.register('sw.js');
+                    await navigator.serviceWorker.ready;
+                }
+                
+                // VAPID Public Key vom Server holen
+                let vapidKey = localStorage.getItem('lkt-vapid-key');
+                if (!vapidKey) {
+                    const keyResult = await apiGet('getVapidKey');
+                    if (keyResult.publicKey) {
+                        vapidKey = keyResult.publicKey;
+                        localStorage.setItem('lkt-vapid-key', vapidKey);
+                    }
+                }
+                
+                if (!vapidKey) {
+                    console.log('No VAPID key available, using local notifications only');
+                    return;
+                }
+                
+                // Push-Subscription erstellen
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
+                });
+                
+                pushSubscription = subscription;
+                
+                // Subscription an Server senden
+                if (currentUser?.memberId) {
+                    const settings = JSON.parse(localStorage.getItem('lkt-notification-settings') || '{}');
+                    await apiPost({
+                        action: 'subscribePush',
+                        memberId: currentUser.memberId,
+                        subscription: subscription.toJSON(),
+                        settings: settings
+                    });
+                }
+                
+                console.log('Push subscription registered successfully');
+            } catch (e) {
+                console.log('Push subscription failed, using local notifications:', e.message);
+            }
+        }
+        
+        async function checkPushSubscription() {
+            try {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration) {
+                    pushSubscription = await registration.pushManager.getSubscription();
+                    if (pushSubscription && currentUser?.memberId) {
+                        // Subscription aktualisieren
+                        await apiPost({
+                            action: 'subscribePush',
+                            memberId: currentUser.memberId,
+                            subscription: pushSubscription.toJSON()
+                        });
+                    }
+                }
+            } catch (e) {
+                console.log('Check push subscription error:', e);
+            }
+            
+            // Fallback: Lokale Event-Prüfung
+            checkUpcomingEvents();
+        }
+        
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+        
+        function checkUpcomingEvents() {
+            if (!notificationsEnabled || Notification.permission !== 'granted') return;
+            
+            const settings = JSON.parse(localStorage.getItem('lkt-notification-settings') || '{}');
+            if (!settings.eventReminder) return;
+            
+            const reminderMinutes = parseInt(settings.reminderTime) || 60;
+            const now = new Date();
+            const lastNotified = localStorage.getItem('lkt-last-event-notified') || '';
+            
+            eventsData.forEach(event => {
+                if (!event.date || !event.time) return;
+                
+                const dateParts = event.date.split('.');
+                if (dateParts.length !== 3) return;
+                
+                const timeParts = event.time.split(':');
+                if (timeParts.length < 2) return;
+                
+                const eventDate = new Date(
+                    parseInt(dateParts[2]), 
+                    parseInt(dateParts[1]) - 1, 
+                    parseInt(dateParts[0]),
+                    parseInt(timeParts[0]),
+                    parseInt(timeParts[1])
+                );
+                
+                const diffMinutes = (eventDate - now) / (1000 * 60);
+                
+                if (diffMinutes > 0 && diffMinutes <= reminderMinutes && lastNotified !== event.id) {
+                    const timeStr = diffMinutes < 60 
+                        ? Math.round(diffMinutes) + ' Minuten' 
+                        : Math.round(diffMinutes / 60) + ' Stunde(n)';
+                    
+                    new Notification('🎺 Auftritt in ' + timeStr + '!', {
+                        body: event.name + (event.location ? '\n📍 ' + event.location : ''),
+                        icon: 'icon-192.png',
+                        tag: 'lkt-event-' + event.id,
+                        requireInteraction: true
+                    });
+                    
+                    localStorage.setItem('lkt-last-event-notified', event.id);
+                }
+            });
+        }
+        
+        function loadPushSettingsLocal() {
+            const settings = JSON.parse(localStorage.getItem('lkt-notification-settings') || '{}');
+            
+            const newsEl = document.getElementById('push-news');
+            if (newsEl) newsEl.checked = settings.news !== false; // Standard: an
+            document.getElementById('push-event-reminder').checked = settings.eventReminder !== false;
+            document.getElementById('push-reminder-time').value = settings.reminderTime || '60';
+            document.getElementById('push-forum-posts').checked = settings.forumPosts || false;
+            document.getElementById('push-register-posts').checked = settings.registerPosts || false;
+            
+            updateReminderTimeVisibility();
+        }
+        
+        function savePushSettingsLocal() {
+            const newsEl = document.getElementById('push-news');
+            const settings = {
+                news: newsEl ? newsEl.checked : true,
+                eventReminder: document.getElementById('push-event-reminder').checked,
+                reminderTime: document.getElementById('push-reminder-time').value,
+                forumPosts: document.getElementById('push-forum-posts').checked,
+                registerPosts: document.getElementById('push-register-posts').checked
+            };
+            
+            localStorage.setItem('lkt-notification-settings', JSON.stringify(settings));
+            updateReminderTimeVisibility();
+            
+            // Push-Subscription aktualisieren wenn aktiviert
+            updatePushSubscription(settings);
+            
+            showToast('Einstellungen gespeichert!');
+        }
+        
+        async function updatePushSubscription(settings) {
+            if (!currentUser) return;
+            
+            try {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (!registration) return;
+                
+                const subscription = await registration.pushManager.getSubscription();
+                if (!subscription) return;
+                
+                // Speichere Einstellungen auf Server
+                await apiPost({
+                    action: 'updatePushSettings',
+                    memberId: currentUser.memberId,
+                    settings: settings,
+                    subscription: JSON.parse(JSON.stringify(subscription))
+                });
+            } catch (e) {
+                console.log('Push settings update error:', e);
+            }
+        }
+        
+        function updateReminderTimeVisibility() {
+            const reminderEnabled = document.getElementById('push-event-reminder').checked;
+            const timeGroup = document.getElementById('reminder-time-group');
+            if (timeGroup) {
+                timeGroup.style.display = reminderEnabled ? 'block' : 'none';
+            }
+        }
+        
+        // Periodisch auf Events prüfen (alle 5 Minuten wenn App offen)
+        setInterval(() => {
+            if (notificationsEnabled && currentUser) {
+                checkUpcomingEvents();
+            }
+        }, 5 * 60 * 1000);
+        
+        // ============================================================
+        // PDF EXPORT WOCHENEND-ÜBERSICHT
+        // ============================================================
+        
+        async function exportWeekendPDF() {
+            const week = document.getElementById('weekend-select').value;
+            if (!week) { showToast('Bitte Wochenende wählen', true); return; }
+            
+            showLoading();
+            
+            const weekEvents = eventsData.filter(e => e.week === week);
+            
+            let content = '';
+            content += '<html><head><meta charset="UTF-8"><title>Wochenend-Übersicht ' + week + '</title>';
+            content += '<style>';
+            content += 'body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }';
+            content += 'h1 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; font-size: 20px; }';
+            content += 'h2 { color: #374151; margin-top: 20px; page-break-after: avoid; font-size: 14px; }';
+            content += 'h3 { color: #4b5563; margin-top: 15px; page-break-after: avoid; font-size: 12px; }';
+            content += '.event-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin: 12px 0; page-break-inside: avoid; }';
+            content += '.event-title { font-size: 14px; font-weight: bold; color: #1e40af; }';
+            content += '.event-info { color: #666; margin: 5px 0; font-size: 10px; }';
+            content += '.stats { display: flex; gap: 15px; margin: 10px 0; flex-wrap: wrap; }';
+            content += '.stat { padding: 4px 12px; border-radius: 5px; font-size: 10px; }';
+            content += '.present { background: #d1fae5; color: #065f46; }';
+            content += '.absent { background: #fee2e2; color: #991b1b; }';
+            content += '.zugesagt { background: #dbeafe; color: #1e40af; }';
+            content += 'table { width: 100%; border-collapse: collapse; margin: 10px 0; page-break-inside: auto; }';
+            content += 'tr { page-break-inside: avoid; page-break-after: auto; }';
+            content += 'th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; font-size: 10px; }';
+            content += 'th { background: #f3f4f6; }';
+            content += '.member-list { columns: 2; column-gap: 15px; }';
+            content += '.member-item { padding: 2px 0; font-size: 10px; break-inside: avoid; }';
+            content += '.member-item.present { color: #065f46; }';
+            content += '.member-item.absent { color: #991b1b; }';
+            content += '.absence-section { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; margin: 15px 0; page-break-inside: avoid; }';
+            content += '@media print { .event-card, .absence-section, th { page-break-inside: avoid; print-color-adjust: exact; -webkit-print-color-adjust: exact; } }';
+            content += '@page { margin: 15mm; }';
+            content += '</style></head><body>';
+            
+            content += '<h1>🎺 LKT Tracker - Wochenend-Übersicht ' + week + '</h1>';
+            content += '<p style="font-size: 10px; color: #666;">Erstellt am: ' + new Date().toLocaleString('de-DE') + '</p>';
+            
+            // Gesamt-Statistik
+            let totalPresent = 0, totalAbsent = 0;
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                totalPresent += att.filter(a => a.status === 'anwesend').length;
+                totalAbsent += att.filter(a => a.status === 'abwesend').length;
+            });
+            
+            content += '<div class="stats">';
+            content += '<div class="stat present">✓ ' + totalPresent + ' Anwesend (gesamt)</div>';
+            content += '<div class="stat absent">✗ ' + totalAbsent + ' Abwesend (gesamt)</div>';
+            content += '<div class="stat">' + weekEvents.length + ' Auftritte</div>';
+            content += '</div>';
+            
+            // Abmeldungen Zusammenfassung am Anfang
+            let allAbsent = [];
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                att.filter(a => a.status === 'abwesend').forEach(a => {
+                    if (!allAbsent.find(x => x.name.toLowerCase() === a.name.toLowerCase())) {
+                        allAbsent.push({ name: a.name, comment: a.comment, events: [event.name] });
+                    } else {
+                        const existing = allAbsent.find(x => x.name.toLowerCase() === a.name.toLowerCase());
+                        existing.events.push(event.name);
+                    }
+                });
+            });
+            
+            if (allAbsent.length > 0) {
+                content += '<h2 style="color: #991b1b;">⚠️ Abmeldungen für ' + week + '</h2>';
+                content += '<table class="register-table">';
+                content += '<tr><th>Name</th><th>Grund</th><th>Fehlt bei</th></tr>';
+                allAbsent.forEach(a => {
+                    content += '<tr><td>' + a.name + '</td><td>' + (a.comment || '-') + '</td><td>' + a.events.join(', ') + '</td></tr>';
+                });
+                content += '</table>';
+            }
+            
+            // Events
+            weekEvents.forEach(event => {
+                const att = weekendAttendanceData[event.id] || [];
+                const present = att.filter(a => a.status === 'anwesend');
+                const absent = att.filter(a => a.status === 'abwesend');
+                
+                // Zusagen für dieses Event
+                const eventZusagen = zusagenData[event.id] || {};
+                const zugesagt = Object.keys(eventZusagen).filter(name => eventZusagen[name] && !present.find(p => p.name.toLowerCase() === name.toLowerCase()) && !absent.find(a => a.name.toLowerCase() === name.toLowerCase()));
+                
+                content += '<div class="event-card">';
+                content += '<div class="event-title">' + event.name + '</div>';
+                content += '<div class="event-info">📍 ' + (event.location || '-') + ' | 🕐 ' + (event.time || '-') + ' | ' + (event.date || '') + '</div>';
+                content += '<div class="stats">';
+                content += '<div class="stat present">✓ ' + present.length + ' dabei</div>';
+                content += '<div class="stat" style="background: #dbeafe; color: #1e40af;">📅 ' + zugesagt.length + ' zugesagt</div>';
+                content += '<div class="stat absent">✗ ' + absent.length + ' abgesagt</div>';
+                content += '</div>';
+                
+                // Register-Statistik
+                const registerStats = {};
+                registerData.forEach(r => { registerStats[r.id] = { name: r.name, present: 0, zugesagt: 0, absent: 0, total: 0 }; });
+                registerStats['none'] = { name: 'Ohne Register', present: 0, zugesagt: 0, absent: 0, total: 0 };
+                
+                allMembersData.forEach(m => {
+                    const regId = m.registerId || 'none';
+                    if (registerStats[regId]) registerStats[regId].total++;
+                });
+                
+                present.forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].present++;
+                });
+                
+                zugesagt.forEach(name => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].zugesagt++;
+                });
+                
+                absent.forEach(a => {
+                    const member = allMembersData.find(m => m.name.toLowerCase() === a.name.toLowerCase());
+                    const regId = member ? (member.registerId || 'none') : 'none';
+                    if (registerStats[regId]) registerStats[regId].absent++;
+                });
+                
+                content += '<table class="register-table">';
+                content += '<tr><th>Register</th><th>Dabei</th><th>Zugesagt</th><th>Abgesagt</th><th>Gesamt</th></tr>';
+                Object.values(registerStats).filter(r => r.total > 0).forEach(r => {
+                    content += '<tr><td>' + r.name + '</td><td style="color: #065f46;">' + r.present + '</td><td style="color: #1e40af;">' + r.zugesagt + '</td><td style="color: #991b1b;">' + r.absent + '</td><td>' + r.total + '</td></tr>';
+                });
+                content += '</table>';
+                
+                // Teilnehmerliste
+                content += '<h3>Teilnehmer</h3>';
+                content += '<div class="member-list">';
+                present.forEach(a => {
+                    content += '<div class="member-item present">✓ ' + a.name + '</div>';
+                });
+                zugesagt.forEach(name => {
+                    content += '<div class="member-item" style="color: #1e40af;">📅 ' + name + '</div>';
+                });
+                content += '</div>';
+                
+                // Abmeldungen für dieses Event
+                if (absent.length > 0) {
+                    content += '<h3 style="color: #991b1b;">Abmeldungen</h3>';
+                    content += '<div class="member-list">';
+                    absent.forEach(a => {
+                        content += '<div class="member-item absent">✗ ' + a.name + (a.comment ? ' - ' + a.comment : '') + '</div>';
+                    });
+                    content += '</div>';
+                }
+                content += '</div>';
+            });
+            
+            content += '</body></html>';
+            
+            // PDF öffnen
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(content);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => { printWindow.print(); }, 500);
+            
+            hideLoading();
+        }
+    </script>
+</body>
+</html>
