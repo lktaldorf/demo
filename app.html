@@ -2110,7 +2110,8 @@
         function renderMemberView() {
             renderEventsList();
             updateMemberStats();
-            document.getElementById('profile-name').textContent = currentUser.name;
+            const profileNameEl = document.getElementById('profile-display-name');
+            if (profileNameEl) profileNameEl.textContent = currentUser.name;
         }
         
         function renderEventsList() {
@@ -3121,7 +3122,8 @@
                     // Aktualisiere lokale Daten
                     if (result.newName) {
                         currentUser.name = result.newName;
-                        document.getElementById('profile-name').textContent = result.newName;
+                        const nameEl = document.getElementById('profile-display-name');
+                        if (nameEl) nameEl.textContent = result.newName;
                     }
                     if (newPin) {
                         currentUser.pin = newPin;
