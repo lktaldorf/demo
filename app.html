@@ -183,6 +183,17 @@
         .forum-tab.active { background: var(--accent-blue); color: white; }
         .forum-tab.register-tab { border-left: 3px solid var(--accent-purple); }
         .forum-tab .bereich-badge { position: absolute; top: -5px; right: -5px; background: var(--accent-red); color: white; border-radius: 50%; min-width: 18px; height: 18px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
+        .news-section { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .news-tab-btn { flex: 1; padding: 0.75rem; border-radius: 12px; background: var(--bg-card); border: 2px solid transparent; color: var(--text-primary); font-weight: 600; position: relative; }
+        .news-tab-btn.active { background: var(--accent-red); color: white; border-color: var(--accent-red); }
+        .news-tab-btn:not(.active):hover { border-color: var(--accent-blue); }
+        .news-tab-btn .badge { position: absolute; top: -5px; right: -5px; }
+        .news-card { background: linear-gradient(135deg, var(--accent-red) 0%, #c0392b 100%); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; color: white; }
+        .news-card .news-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem; }
+        .news-card .news-title { font-weight: 700; font-size: 1.1rem; }
+        .news-card .news-date { font-size: 0.75rem; opacity: 0.8; }
+        .news-card .news-content { font-size: 0.95rem; line-height: 1.5; }
+        .news-card .news-author { font-size: 0.8rem; opacity: 0.7; margin-top: 0.75rem; text-align: right; }
         .weekend-event-card { background: var(--bg-card); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; border-left: 4px solid var(--accent-blue); transition: transform 0.2s; }
         .weekend-event-card:hover { transform: translateX(5px); }
         .weekend-event-card .event-name { font-weight: 700; font-size: 1rem; margin-bottom: 0.25rem; }
@@ -256,9 +267,10 @@
             <div id="setup-step-4" class="hidden">
                 <h3 style="margin-bottom: 1rem;">🎺 Neu registrieren</h3>
                 <div class="input-group"><label>Dein Name</label><input type="text" id="register-name-input" placeholder="Max Mustermann"></div>
-                <div class="input-group"><label>Wähle eine PIN (4 Ziffern)</label><input type="number" id="register-pin-input" placeholder="1234" maxlength="4"></div>
-                <button class="btn btn-primary btn-block" onclick="registerMember()">Registrieren</button>
+                <div class="input-group"><label>Wähle eine PIN (mind. 4 Zeichen)</label><input type="password" id="register-pin-input" placeholder="****" minlength="4"></div>
+                <button class="btn btn-primary btn-block" onclick="registerMember()">📨 Anfrage senden</button>
                 <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 1rem; text-align: center;">
+                    Ein Admin muss deine Registrierung bestätigen.<br>
                     Bereits registriert? <a href="#" onclick="showStep(3); return false;" style="color: var(--accent-yellow);">Zum Login</a>
                 </p>
             </div>
@@ -314,14 +326,33 @@
             <!-- Schwarzes Brett Tab -->
             <div id="brett-tab" class="screen">
                 <div class="section-header"><h2>📋 Schwarzes Brett</h2></div>
-                <div class="forum-tabs" id="forum-tabs-member"></div>
-                <div class="card" id="new-post-form">
-                    <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
-                    <div class="input-group"><input type="text" id="post-titel" placeholder="Titel"></div>
-                    <div class="input-group"><textarea id="post-inhalt" rows="3" placeholder="Was gibt's Neues?"></textarea></div>
-                    <button class="btn btn-primary btn-block" onclick="submitBrettPost()">📤 Veröffentlichen</button>
+                
+                <!-- News Tab als erstes (immer sichtbar) -->
+                <div class="news-section" style="margin-bottom: 1rem;">
+                    <button class="btn news-tab-btn active" onclick="showBrettSection('news')" id="news-tab-btn">
+                        📢 Wichtige News <span class="badge news-badge" id="news-unread-badge" style="display: none;">0</span>
+                    </button>
+                    <button class="btn news-tab-btn" onclick="showBrettSection('forum')" id="forum-tab-btn">
+                        💬 Forum
+                    </button>
                 </div>
-                <div id="brett-posts-member"></div>
+                
+                <!-- Wichtige News Bereich -->
+                <div id="news-section">
+                    <div id="news-posts"></div>
+                </div>
+                
+                <!-- Forum Bereich -->
+                <div id="forum-section" style="display: none;">
+                    <div class="forum-tabs" id="forum-tabs-member"></div>
+                    <div class="card" id="new-post-form">
+                        <h3 style="margin-bottom: 0.75rem; color: var(--accent-yellow);">✏️ Neuer Beitrag</h3>
+                        <div class="input-group"><input type="text" id="post-titel" placeholder="Titel"></div>
+                        <div class="input-group"><textarea id="post-inhalt" rows="3" placeholder="Was gibt's Neues?"></textarea></div>
+                        <button class="btn btn-primary btn-block" onclick="submitBrettPost()">📤 Veröffentlichen</button>
+                    </div>
+                    <div id="brett-posts-member"></div>
+                </div>
             </div>
             
             <!-- Register View Tab -->
@@ -383,7 +414,8 @@
                 <div class="card">
                     <div style="text-align: center; margin-bottom: 1rem;">
                         <div style="font-size: 4rem;">🎺</div>
-                        <div style="font-size: 1.5rem; font-weight: 700;" id="profile-name">-</div>
+                        <div style="font-size: 1.5rem; font-weight: 700;" id="profile-display-name">-</div>
+                        <div style="color: var(--text-secondary);" id="profile-display-spitzname"></div>
                     </div>
                     <div class="input-group">
                         <label>Mein fester Bus</label>
@@ -394,7 +426,51 @@
                         <label>Mein Register</label>
                         <select id="profile-register"><option value="">-- Register wählen --</option></select>
                     </div>
-                    <button class="btn btn-primary btn-block" onclick="saveProfile()">💾 Profil speichern</button>
+                    <button class="btn btn-primary btn-block" onclick="saveBusRegister()">💾 Bus & Register speichern</button>
+                </div>
+                
+                <!-- Persönliche Daten -->
+                <div class="card" style="margin-top: 1rem;">
+                    <h3 style="color: var(--accent-green); margin-bottom: 1rem;">📋 Meine Daten</h3>
+                    <div class="input-group">
+                        <label>Spitzname</label>
+                        <input type="text" id="profile-spitzname" placeholder="Dein Spitzname">
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div class="input-group">
+                            <label>Email</label>
+                            <input type="email" id="profile-email" placeholder="deine@email.de">
+                        </div>
+                        <div class="input-group">
+                            <label>Telefon</label>
+                            <input type="tel" id="profile-telefon" placeholder="0170 1234567">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Geburtstag (TT.MM.JJJJ)</label>
+                        <input type="text" id="profile-geburtstag" placeholder="01.01.1990">
+                    </div>
+                    
+                    <div class="section-header" style="margin-top: 1rem;"><h4>👕 Kleidungsgrößen</h4></div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                        <div class="input-group">
+                            <label>Schuhgröße</label>
+                            <input type="text" id="profile-schuhgroesse" placeholder="42">
+                        </div>
+                        <div class="input-group">
+                            <label>Hosengröße</label>
+                            <input type="text" id="profile-hosengroesse" placeholder="32/32">
+                        </div>
+                        <div class="input-group">
+                            <label>Hemdengröße</label>
+                            <input type="text" id="profile-hemdengroesse" placeholder="M">
+                        </div>
+                        <div class="input-group">
+                            <label>Größe allgemein</label>
+                            <input type="text" id="profile-groesseAllgemein" placeholder="M">
+                        </div>
+                    </div>
+                    <button class="btn btn-success btn-block" onclick="savePersonalData()">💾 Persönliche Daten speichern</button>
                 </div>
                 
                 <!-- Anmeldedaten ändern -->
@@ -424,6 +500,14 @@
                     <div id="push-settings-container">
                         <button class="btn btn-secondary btn-block" id="push-enable-btn" onclick="enablePushNotifications()">🔔 Benachrichtigungen aktivieren</button>
                         <div id="push-settings" class="hidden" style="margin-top: 1rem;">
+                            <div class="setting-item">
+                                <label class="toggle-label">
+                                    <span>📢 Wichtige News</span>
+                                    <input type="checkbox" id="push-news" onchange="savePushSettingsLocal()" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Wichtige Ankündigungen vom Verein</p>
+                            </div>
                             <div class="setting-item">
                                 <label class="toggle-label">
                                     <span>📅 Event-Erinnerungen</span>
@@ -663,6 +747,26 @@
             <div id="settings-tab" class="screen">
                 <div class="section-header"><h2>⚙️ Vereinseinstellungen</h2></div>
                 
+                <!-- Accordion: Admin-Sicherheit (nur für Admin) -->
+                <div class="settings-accordion" id="admin-security-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>🔐 Admin-Sicherheit</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <div class="input-group">
+                            <label>Neuer Admin-PIN</label>
+                            <input type="password" id="new-admin-pin" placeholder="Neuer PIN eingeben" minlength="4">
+                        </div>
+                        <div class="input-group">
+                            <label>PIN bestätigen</label>
+                            <input type="password" id="new-admin-pin-confirm" placeholder="PIN wiederholen" minlength="4">
+                        </div>
+                        <button class="btn btn-primary btn-block" onclick="changeAdminPin()">🔐 Admin-PIN ändern</button>
+                        <p class="setting-desc" style="margin-top: 0.5rem;">Der PIN für den Admin-Login (⚖️ Hohes Gericht)</p>
+                    </div>
+                </div>
+                
                 <!-- Accordion: API-Verbindung -->
                 <div class="settings-accordion">
                     <button class="accordion-header" onclick="toggleAccordion(this)">
@@ -712,6 +816,12 @@
                         <span class="accordion-icon">▲</span>
                     </button>
                     <div class="accordion-content open">
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: var(--accent-green); margin-bottom: 0.5rem;">🆕 Neue Mitglieder <span class="badge" id="registration-count">0</span></h4>
+                            <div id="registration-requests-list">
+                                <div class="empty-state">Keine offenen Anfragen</div>
+                            </div>
+                        </div>
                         <div style="margin-bottom: 1rem;">
                             <h4 style="color: var(--accent-orange); margin-bottom: 0.5rem;">Register-Wechsel <span class="badge" id="anfragen-count">0</span></h4>
                             <div id="register-anfragen-list"></div>
@@ -820,6 +930,47 @@
                     </div>
                 </div>
                 
+                <!-- Accordion: Mitglieder-Daten Import -->
+                <div class="settings-accordion" id="member-import-section">
+                    <button class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📥 Mitglieder-Daten Import</span>
+                        <span class="accordion-icon">▼</span>
+                    </button>
+                    <div class="accordion-content">
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                            Importiere Mitgliederdaten (Name, Geburtstag, Kontakt, Größen) und ordne sie bestehenden App-Benutzern zu.
+                        </p>
+                        
+                        <div class="input-group">
+                            <label>JSON-Datei auswählen</label>
+                            <input type="file" id="import-file" accept=".json" onchange="previewImport()">
+                        </div>
+                        <div id="import-preview" style="display: none; margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px;">
+                            <span id="import-count">0</span> Mitglieder gefunden
+                        </div>
+                        <button class="btn btn-primary btn-block" id="import-btn" onclick="importMemberData()" disabled>📥 Importieren</button>
+                        
+                        <hr style="border-color: var(--border-color); margin: 1.5rem 0;">
+                        
+                        <h4 style="margin-bottom: 0.75rem;">🔗 Zuordnen</h4>
+                        <div class="input-group">
+                            <label>App-Benutzer</label>
+                            <select id="link-member-select">
+                                <option value="">-- Benutzer wählen --</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Import-Daten</label>
+                            <select id="link-import-select">
+                                <option value="">-- Import-Daten wählen --</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-success btn-block" onclick="linkMemberData()">🔗 Verknüpfen</button>
+                        
+                        <div id="linked-members-list" style="margin-top: 1rem; max-height: 200px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+                
                 <button class="btn btn-danger btn-block" style="margin-top: 2rem;" onclick="logout()">🚪 Ausloggen</button>
             </div>
             
@@ -857,6 +1008,8 @@
                     <div class="setting-item"><label class="toggle-label"><span>Eigenes Register sehen</span><input type="checkbox" id="perm-viewOwnRegister"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>📊 Alle Register-Zusagen sehen</span><input type="checkbox" id="perm-viewAllRegisterZusagen"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>📈 Bus/Register-Statistik sehen</span><input type="checkbox" id="perm-viewStats"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>👤 Mitglieder-Details sehen (Geb., Tel.)</span><input type="checkbox" id="perm-viewMemberDetails"><span class="toggle-slider"></span></label></div>
+                    <div class="setting-item"><label class="toggle-label"><span>📢 Wichtige News schreiben</span><input type="checkbox" id="perm-postNews"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Events verwalten</span><input type="checkbox" id="perm-manageEvents"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Mitglieder verwalten</span><input type="checkbox" id="perm-manageMembers"><span class="toggle-slider"></span></label></div>
                     <div class="setting-item"><label class="toggle-label"><span>Rollen verwalten</span><input type="checkbox" id="perm-manageRoles"><span class="toggle-slider"></span></label></div>
@@ -1204,8 +1357,10 @@
         // ============================================================
         // API FUNCTIONS
         // ============================================================
+        const API_KEY = 'LKT-dvMbjra7kYAkkDJVsAKBCOyPV9E9xhWbxYwROtHb';
+        
         async function apiGet(action, params = {}) {
-            let url = API_URL + '?action=' + action;
+            let url = API_URL + '?action=' + action + '&apiKey=' + encodeURIComponent(API_KEY);
             for (const [key, value] of Object.entries(params)) {
                 url += '&' + key + '=' + encodeURIComponent(value);
             }
@@ -1214,6 +1369,7 @@
         }
         
         async function apiPost(data) {
+            data.apiKey = API_KEY;
             const response = await fetch(API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain' },
@@ -1235,16 +1391,18 @@
         async function registerMember() {
             const name = document.getElementById('register-name-input').value.trim();
             const pin = document.getElementById('register-pin-input').value.trim();
-            if (!name || !pin || pin.length !== 4) { showToast('Name und 4-stellige PIN erforderlich', true); return; }
+            if (!name || !pin || pin.length < 4) { showToast('Name und PIN (mind. 4 Zeichen) erforderlich', true); return; }
             showLoading();
             try {
-                const result = await apiPost({ action: 'registerMember', name: name, pin: pin });
+                const result = await apiPost({ action: 'requestRegistration', name: name, pin: pin });
                 if (result.error) { showToast(result.error, true); hideLoading(); return; }
-                currentUser = { role: 'member', name: name, pin: pin };
-                localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-                showToast('Erfolgreich registriert!');
-                showMainApp();
-            } catch (e) { showToast('Fehler: ' + e.message, true); hideLoading(); }
+                showToast('Anfrage gesendet! Warte auf Freischaltung durch Admin.', false);
+                // Zurück zum Login-Screen
+                showStep(3);
+                document.getElementById('register-name-input').value = '';
+                document.getElementById('register-pin-input').value = '';
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
         }
         
         async function loginMember() {
@@ -1253,26 +1411,28 @@
             if (!name || !pin || pin.length < 4) { showToast('Name und PIN (mind. 4 Zeichen) erforderlich', true); return; }
             showLoading();
             try {
-                const result = await apiGet('getMemberAttendance', { name: name });
-                if (result.error) { showToast('Name nicht gefunden', true); hideLoading(); return; }
-                if (String(result.pin) !== String(pin)) { showToast('Falscher PIN', true); hideLoading(); return; }
+                // Sichere PIN-Verifizierung über Worker (PIN wird nie zurückgegeben)
+                const result = await apiPost({ action: 'verifyMemberPin', name: name, pin: pin });
+                if (result.error) { 
+                    showToast(result.error, true); 
+                    hideLoading(); 
+                    return; 
+                }
                 
-                // Berechtigungen laden
-                const permResult = await apiGet('getMemberPermissions', { name: name });
-                const permissions = permResult.permissions || {};
-                const rollenId = result.rollenId || permResult.rollenId || 'ROLE-MITGLIED';
+                const permissions = result.permissions || {};
+                const rollenId = result.rollenId || 'ROLE-MITGLIED';
                 
                 // Admin-Rollen bekommen gericht-View, andere member-View
                 if (permissions.isAdmin || permissions.canManageMembers || permissions.canManageEvents) {
                     currentUser = { 
-                        role: 'gericht', name: result.name, pin: pin, 
+                        role: 'gericht', name: result.name,
                         rollenId: rollenId, permissions: permissions,
                         busId: result.busId, registerId: result.registerId, memberId: result.memberId,
                         mustChangePin: result.mustChangePin || false
                     };
                 } else {
                     currentUser = { 
-                        role: 'member', name: result.name, pin: pin, 
+                        role: 'member', name: result.name,
                         rollenId: rollenId, permissions: permissions,
                         busId: result.busId, registerId: result.registerId, memberId: result.memberId,
                         mustChangePin: result.mustChangePin || false
@@ -1290,25 +1450,40 @@
             } catch (e) { showToast('Fehler: ' + e.message, true); hideLoading(); }
         }
         
-        function loginGericht() {
+        async function loginGericht() {
             const pin = document.getElementById('gericht-pin-input').value.trim();
+            if (!pin) { showToast('PIN erforderlich', true); return; }
             
-            if (pin === '8356') {
-                currentUser = { 
-                    role: 'gericht', name: 'Admin', 
-                    rollenId: 'ROLE-ADMIN', 
-                    permissions: {
-                        isAdmin: true, canViewAllMembers: true, canViewAllAttendance: true,
-                        canViewOwnRegister: true, canManageEvents: true, canManageMembers: true,
-                        canManageRoles: true, canManageAnzeigen: true, canCreateForumCategories: true
-                    }
-                };
-            } else {
-                showToast('Falscher PIN', true); return;
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'loginAdmin', pin: pin });
+                if (result.error) {
+                    showToast(result.error, true);
+                    hideLoading();
+                    return;
+                }
+                
+                if (result.success) {
+                    currentUser = { 
+                        role: 'gericht', 
+                        name: result.name || 'Admin', 
+                        rollenId: result.rollenId || 'ROLE-ADMIN', 
+                        permissions: result.permissions || {
+                            isAdmin: true, canViewAllMembers: true, canViewAllAttendance: true,
+                            canViewOwnRegister: true, canManageEvents: true, canManageMembers: true,
+                            canManageRoles: true, canManageAnzeigen: true, canCreateForumCategories: true
+                        }
+                    };
+                    localStorage.setItem('lkt-user', JSON.stringify(currentUser));
+                    showToast('Willkommen, ' + currentUser.name + '!');
+                    showMainApp();
+                } else {
+                    showToast('Login fehlgeschlagen', true);
+                }
+            } catch (e) {
+                showToast('Verbindungsfehler', true);
             }
-            localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-            showToast('Willkommen, Admin!');
-            showMainApp();
+            hideLoading();
         }
         
         function logout() {
@@ -1580,9 +1755,9 @@
                     populateProfileSelects();
                     populateRegisterEventSelect();
                     
-                    // Forum im Hintergrund laden (nicht blockierend)
+                    // News und Forum im Hintergrund laden
+                    loadNews().catch(e => {});
                     loadForumBereiche().catch(e => {});
-                    loadBrettPosts('member');
                     initPushNotifications();
                 } else {
                     // Gericht: UI updaten und zusätzliche Daten laden
@@ -1737,6 +1912,152 @@
                 localStorage.removeItem('lkt-api-url');
                 showToast('API URL zurückgesetzt');
             }
+        }
+        
+        async function changeAdminPin() {
+            const newPin = document.getElementById('new-admin-pin').value.trim();
+            const confirmPin = document.getElementById('new-admin-pin-confirm').value.trim();
+            
+            if (!newPin || newPin.length < 4) {
+                showToast('PIN muss mindestens 4 Zeichen haben', true);
+                return;
+            }
+            
+            if (newPin !== confirmPin) {
+                showToast('PINs stimmen nicht überein', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'changeAdminPin', newPin: newPin });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('Admin-PIN erfolgreich geändert!');
+                    document.getElementById('new-admin-pin').value = '';
+                    document.getElementById('new-admin-pin-confirm').value = '';
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        // ============================================================
+        // MITGLIEDER-IMPORT FUNKTIONEN
+        // ============================================================
+        let importData = [];
+        
+        function previewImport() {
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    importData = JSON.parse(e.target.result);
+                    document.getElementById('import-preview').style.display = 'block';
+                    document.getElementById('import-count').textContent = importData.length;
+                    document.getElementById('import-btn').disabled = false;
+                } catch (err) {
+                    showToast('Ungültige JSON-Datei', true);
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        async function importMemberData() {
+            if (importData.length === 0) {
+                showToast('Keine Daten zum Importieren', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'importMemberData', memberData: importData });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    loadImportedMembers();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function loadImportedMembers() {
+            try {
+                const result = await apiGet('getImportedMembers');
+                const imported = result.importedMembers || [];
+                
+                // Fülle Import-Dropdown
+                const importSelect = document.getElementById('link-import-select');
+                if (importSelect) {
+                    let html = '<option value="">-- Import-Daten wählen --</option>';
+                    imported.filter(i => !i.isLinked).forEach(i => {
+                        html += '<option value="' + i.fullName + '">' + i.fullName;
+                        if (i.spitzname) html += ' (' + i.spitzname + ')';
+                        html += '</option>';
+                    });
+                    importSelect.innerHTML = html;
+                }
+                
+                // Fülle Benutzer-Dropdown
+                const memberSelect = document.getElementById('link-member-select');
+                if (memberSelect) {
+                    let html = '<option value="">-- Benutzer wählen --</option>';
+                    membersData.filter(m => !m.linkedImportId).forEach(m => {
+                        html += '<option value="' + m.id + '">' + m.name + '</option>';
+                    });
+                    memberSelect.innerHTML = html;
+                }
+                
+                // Zeige bereits verknüpfte
+                const linkedList = document.getElementById('linked-members-list');
+                if (linkedList) {
+                    const linked = imported.filter(i => i.isLinked);
+                    if (linked.length === 0) {
+                        linkedList.innerHTML = '<div class="empty-state" style="font-size: 0.85rem;">Noch keine Verknüpfungen</div>';
+                    } else {
+                        let html = '<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">' + linked.length + ' verknüpft:</div>';
+                        linked.forEach(l => {
+                            html += '<div style="font-size: 0.85rem; padding: 0.25rem 0;">✓ ' + l.fullName + ' → ' + l.linkedTo + '</div>';
+                        });
+                        linkedList.innerHTML = html;
+                    }
+                }
+            } catch (e) {
+                console.log('Error loading imported members:', e);
+            }
+        }
+        
+        async function linkMemberData() {
+            const memberId = document.getElementById('link-member-select').value;
+            const importName = document.getElementById('link-import-select').value;
+            
+            if (!memberId || !importName) {
+                showToast('Bitte Benutzer und Import-Daten auswählen', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'linkMemberData', memberId: memberId, importFullName: importName });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    await refreshData();
+                    loadImportedMembers();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
         }
         
         async function saveAppSettings() {
@@ -2681,9 +3002,36 @@
             
             if (currentUser.busId) busSelect.value = currentUser.busId;
             if (currentUser.registerId) regSelect.value = currentUser.registerId;
+            
+            // Persönliche Daten laden
+            loadPersonalData();
         }
         
-        async function saveProfile() {
+        async function loadPersonalData() {
+            // Lade Mitgliedsdaten vom Server
+            try {
+                const result = await apiGet('getMemberAttendance', { name: currentUser.name });
+                if (result && !result.error) {
+                    // Fülle Felder
+                    document.getElementById('profile-display-name').textContent = result.name || currentUser.name;
+                    if (result.spitzname) {
+                        document.getElementById('profile-display-spitzname').textContent = '„' + result.spitzname + '"';
+                        document.getElementById('profile-spitzname').value = result.spitzname;
+                    }
+                    if (result.email) document.getElementById('profile-email').value = result.email;
+                    if (result.telefon) document.getElementById('profile-telefon').value = result.telefon;
+                    if (result.geburtstag) document.getElementById('profile-geburtstag').value = result.geburtstag;
+                    if (result.schuhgroesse) document.getElementById('profile-schuhgroesse').value = result.schuhgroesse;
+                    if (result.hosengroesse) document.getElementById('profile-hosengroesse').value = result.hosengroesse;
+                    if (result.hemdengroesse) document.getElementById('profile-hemdengroesse').value = result.hemdengroesse;
+                    if (result.groesseAllgemein) document.getElementById('profile-groesseAllgemein').value = result.groesseAllgemein;
+                }
+            } catch (e) {
+                console.log('Error loading personal data:', e);
+            }
+        }
+        
+        async function saveBusRegister() {
             const busId = document.getElementById('profile-bus').value;
             const registerId = document.getElementById('profile-register').value;
             showLoading();
@@ -2694,9 +3042,43 @@
                     currentUser.busId = busId;
                     currentUser.registerId = registerId;
                     localStorage.setItem('lkt-user', JSON.stringify(currentUser));
-                    showToast('Profil gespeichert!');
+                    showToast('Bus & Register gespeichert!');
                 }
             } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        async function savePersonalData() {
+            const details = {
+                spitzname: document.getElementById('profile-spitzname').value.trim(),
+                email: document.getElementById('profile-email').value.trim(),
+                telefon: document.getElementById('profile-telefon').value.trim(),
+                geburtstag: document.getElementById('profile-geburtstag').value.trim(),
+                schuhgroesse: document.getElementById('profile-schuhgroesse').value.trim(),
+                hosengroesse: document.getElementById('profile-hosengroesse').value.trim(),
+                hemdengroesse: document.getElementById('profile-hemdengroesse').value.trim(),
+                groesseAllgemein: document.getElementById('profile-groesseAllgemein').value.trim()
+            };
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'updateMemberDetails', 
+                    memberId: currentUser.memberId, 
+                    details: details 
+                });
+                if (result.error) { 
+                    showToast(result.error, true); 
+                } else {
+                    showToast('Persönliche Daten gespeichert!');
+                    // Spitzname aktualisieren
+                    if (details.spitzname) {
+                        document.getElementById('profile-display-spitzname').textContent = '„' + details.spitzname + '"';
+                    }
+                }
+            } catch (e) { 
+                showToast('Fehler: ' + e.message, true); 
+            }
             hideLoading();
         }
         
@@ -2866,6 +3248,92 @@
                 showToast('Fehler: ' + e.message, true);
             }
             hideLoading();
+        }
+        
+        // Admin: Registrierungsanfragen laden
+        async function loadRegistrationRequests() {
+            try {
+                const result = await apiGet('getRegistrationRequests');
+                const requests = result.requests || [];
+                
+                const countEl = document.getElementById('registration-count');
+                const listEl = document.getElementById('registration-requests-list');
+                
+                if (countEl) countEl.textContent = requests.length;
+                
+                // Total-Anfragen aktualisieren
+                updateTotalAnfragenCount();
+                
+                if (!listEl) return;
+                
+                if (requests.length === 0) {
+                    listEl.innerHTML = '<div class="empty-state">Keine offenen Anfragen</div>';
+                    return;
+                }
+                
+                let html = '';
+                requests.forEach(req => {
+                    const date = new Date(req.requestedAt).toLocaleString('de-DE');
+                    html += '<div class="list-item" style="flex-direction: column; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; background: rgba(255,255,255,0.03); border-radius: 8px; margin-bottom: 0.5rem;">';
+                    html += '<div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">';
+                    html += '<strong style="font-size: 1rem;">' + req.name + '</strong>';
+                    html += '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + date + '</span>';
+                    html += '</div>';
+                    html += '<div style="display: flex; gap: 0.5rem; width: 100%; margin-top: 0.25rem;">';
+                    html += '<button class="btn btn-success" onclick="approveRegistration(\'' + req.id + '\')" style="flex: 1;">✓ Freischalten</button>';
+                    html += '<button class="btn btn-danger" onclick="rejectRegistration(\'' + req.id + '\')" style="flex: 1;">✗ Ablehnen</button>';
+                    html += '</div>';
+                    html += '</div>';
+                });
+                listEl.innerHTML = html;
+            } catch (e) {
+                console.log('Error loading registration requests:', e);
+            }
+        }
+        
+        async function approveRegistration(requestId) {
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'approveRegistration', requestId: requestId });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast(result.message);
+                    loadRegistrationRequests();
+                    await refreshData(); // Mitgliederliste aktualisieren
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function rejectRegistration(requestId) {
+            if (!confirm('Registrierungsanfrage wirklich ablehnen?')) return;
+            
+            showLoading();
+            try {
+                const result = await apiPost({ action: 'rejectRegistration', requestId: requestId });
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('Anfrage abgelehnt');
+                    loadRegistrationRequests();
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        function updateTotalAnfragenCount() {
+            const regCount = parseInt(document.getElementById('registration-count')?.textContent || '0');
+            const anfragenCount = parseInt(document.getElementById('anfragen-count')?.textContent || '0');
+            const pinCount = parseInt(document.getElementById('pin-reset-count')?.textContent || '0');
+            const total = regCount + anfragenCount + pinCount;
+            
+            const totalEl = document.getElementById('total-anfragen-count');
+            if (totalEl) totalEl.textContent = total;
         }
         
         // Nach Login prüfen ob PIN geändert werden muss
@@ -3245,7 +3713,8 @@
                 if (regStatsResult.registerStats) renderRegisterStats(regStatsResult.registerStats);
                 
                 // Forum und Rollen im Hintergrund (nicht blockierend)
-                loadForumBereiche().then(() => loadBrettPosts('gericht')).catch(e => {});
+                loadNews().catch(e => {});
+                loadForumBereiche().catch(e => {});
                 
                 if (permissions.isAdmin || permissions.canManageRoles) {
                     loadRollen().catch(e => {});
@@ -3253,6 +3722,8 @@
                 if (permissions.isAdmin || permissions.canManageMembers) {
                     loadRegisterAnfragen().catch(e => {});
                     loadPinResetRequests().catch(e => {});
+                    loadRegistrationRequests().catch(e => {});
+                    loadImportedMembers().catch(e => {});
                 }
             } catch (e) {
                 console.error('loadGerichtData error:', e);
@@ -3927,6 +4398,176 @@
         // ============================================================
         // SCHWARZES BRETT
         // ============================================================
+        let newsData = [];
+        let currentBrettSection = 'news'; // 'news' oder 'forum'
+        
+        function showBrettSection(section) {
+            currentBrettSection = section;
+            document.getElementById('news-tab-btn').classList.toggle('active', section === 'news');
+            document.getElementById('forum-tab-btn').classList.toggle('active', section === 'forum');
+            document.getElementById('news-section').style.display = section === 'news' ? 'block' : 'none';
+            document.getElementById('forum-section').style.display = section === 'forum' ? 'block' : 'none';
+            
+            if (section === 'news') {
+                loadNews();
+            } else {
+                loadBrettPosts(currentUser.role === 'gericht' ? 'admin' : 'member');
+            }
+        }
+        
+        async function loadNews() {
+            try {
+                const result = await apiGet('getNews');
+                newsData = result.news || [];
+                renderNews();
+                markNewsAsRead();
+            } catch (e) {
+                console.error('News load error:', e);
+            }
+        }
+        
+        function renderNews() {
+            const container = document.getElementById('news-posts');
+            if (!container) return;
+            
+            const permissions = currentUser.permissions || {};
+            const canPost = permissions.isAdmin || permissions.canPostNews;
+            
+            let html = '';
+            
+            // Formular für berechtigte User
+            if (canPost) {
+                html += '<div class="card" style="margin-bottom: 1rem; border: 2px solid var(--accent-red);">';
+                html += '<h3 style="margin-bottom: 0.75rem; color: var(--accent-red);">📢 Neue Wichtige News</h3>';
+                html += '<div class="input-group"><input type="text" id="news-titel" placeholder="Titel der News"></div>';
+                html += '<div class="input-group"><textarea id="news-inhalt" rows="3" placeholder="Inhalt der News..."></textarea></div>';
+                html += '<button class="btn btn-block" style="background: var(--accent-red);" onclick="submitNews()">📢 News veröffentlichen</button>';
+                html += '</div>';
+            }
+            
+            // News anzeigen (neueste zuerst)
+            const sortedNews = [...newsData].sort((a, b) => new Date(b.datum) - new Date(a.datum));
+            
+            if (sortedNews.length === 0) {
+                html += '<div class="empty-state">Keine wichtigen News</div>';
+            } else {
+                sortedNews.forEach(news => {
+                    const date = new Date(news.datum).toLocaleDateString('de-DE', { 
+                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                    });
+                    
+                    html += '<div class="news-card">';
+                    html += '<div class="news-header">';
+                    html += '<div class="news-title">' + news.titel + '</div>';
+                    html += '<div class="news-date">' + date + '</div>';
+                    html += '</div>';
+                    html += '<div class="news-content">' + news.inhalt.replace(/\n/g, '<br>') + '</div>';
+                    html += '<div class="news-author">— ' + news.autor + '</div>';
+                    
+                    if (canPost) {
+                        html += '<button class="btn btn-danger" style="margin-top: 0.5rem; padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="deleteNews(\'' + news.id + '\')">🗑️ Löschen</button>';
+                    }
+                    html += '</div>';
+                });
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        async function submitNews() {
+            const titel = document.getElementById('news-titel').value.trim();
+            const inhalt = document.getElementById('news-inhalt').value.trim();
+            
+            if (!titel || !inhalt) {
+                showToast('Titel und Inhalt erforderlich', true);
+                return;
+            }
+            
+            showLoading();
+            try {
+                const result = await apiPost({ 
+                    action: 'submitNews', 
+                    autor: currentUser.name, 
+                    titel: titel, 
+                    inhalt: inhalt 
+                });
+                
+                if (result.error) {
+                    showToast(result.error, true);
+                } else {
+                    showToast('📢 News veröffentlicht!');
+                    document.getElementById('news-titel').value = '';
+                    document.getElementById('news-inhalt').value = '';
+                    loadNews();
+                    
+                    // Push-Benachrichtigung an alle senden
+                    sendNewsNotification(titel);
+                }
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        async function deleteNews(newsId) {
+            if (!confirm('Diese News wirklich löschen?')) return;
+            
+            showLoading();
+            try {
+                await apiPost({ action: 'deleteNews', newsId: newsId });
+                showToast('News gelöscht');
+                loadNews();
+            } catch (e) {
+                showToast('Fehler: ' + e.message, true);
+            }
+            hideLoading();
+        }
+        
+        function markNewsAsRead() {
+            if (!currentUser) return;
+            const key = 'lkt-news-lastread-' + currentUser.name;
+            localStorage.setItem(key, Date.now().toString());
+            updateNewsUnreadBadge();
+        }
+        
+        function updateNewsUnreadBadge() {
+            if (!currentUser) return;
+            const key = 'lkt-news-lastread-' + currentUser.name;
+            const lastRead = parseInt(localStorage.getItem(key) || '0');
+            
+            const unread = newsData.filter(n => new Date(n.datum).getTime() > lastRead).length;
+            
+            const badge = document.getElementById('news-unread-badge');
+            if (badge) {
+                if (unread > 0) {
+                    badge.textContent = unread;
+                    badge.style.display = 'inline-flex';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+        
+        // Push-Benachrichtigung für News senden
+        async function sendNewsNotification(title) {
+            if ('serviceWorker' in navigator && 'Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    try {
+                        const registration = await navigator.serviceWorker.ready;
+                        registration.showNotification('📢 LKT News', {
+                            body: title,
+                            icon: '/icon-192.png',
+                            badge: '/icon-192.png',
+                            tag: 'lkt-news',
+                            requireInteraction: true
+                        });
+                    } catch (e) {
+                        console.log('Notification error:', e);
+                    }
+                }
+            }
+        }
+        
         async function loadBrettPosts(view) {
             // SOFORT: Cache anzeigen
             const cachedPosts = getFromCache('brett_' + currentForumBereichId);
@@ -4984,6 +5625,8 @@
             document.getElementById('perm-viewOwnRegister').checked = true;
             document.getElementById('perm-viewAllRegisterZusagen').checked = false;
             document.getElementById('perm-viewStats').checked = false;
+            document.getElementById('perm-viewMemberDetails').checked = false;
+            document.getElementById('perm-postNews').checked = false;
             document.getElementById('perm-manageEvents').checked = false;
             document.getElementById('perm-manageMembers').checked = false;
             document.getElementById('perm-manageRoles').checked = false;
@@ -5006,6 +5649,8 @@
             document.getElementById('perm-viewOwnRegister').checked = rolle.canViewOwnRegister;
             document.getElementById('perm-viewAllRegisterZusagen').checked = rolle.canViewAllRegisterZusagen || false;
             document.getElementById('perm-viewStats').checked = rolle.canViewStats || false;
+            document.getElementById('perm-viewMemberDetails').checked = rolle.canViewMemberDetails || false;
+            document.getElementById('perm-postNews').checked = rolle.canPostNews || false;
             document.getElementById('perm-manageEvents').checked = rolle.canManageEvents;
             document.getElementById('perm-manageMembers').checked = rolle.canManageMembers;
             document.getElementById('perm-manageRoles').checked = rolle.canManageRoles;
@@ -5032,6 +5677,8 @@
                 canViewOwnRegister: document.getElementById('perm-viewOwnRegister').checked,
                 canViewAllRegisterZusagen: document.getElementById('perm-viewAllRegisterZusagen').checked,
                 canViewStats: document.getElementById('perm-viewStats').checked,
+                canViewMemberDetails: document.getElementById('perm-viewMemberDetails').checked,
+                canPostNews: document.getElementById('perm-postNews').checked,
                 canManageEvents: document.getElementById('perm-manageEvents').checked,
                 canManageMembers: document.getElementById('perm-manageMembers').checked,
                 canManageRoles: document.getElementById('perm-manageRoles').checked,
@@ -5703,9 +6350,8 @@
         let pushSubscription = null;
         let notificationsEnabled = false;
         
-        // VAPID Public Key - MUSS mit dem im Worker übereinstimmen!
-        // Generiere auf https://vapidkeys.com/ und trage beide Keys ein
-        const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY_HERE'; // Ersetzen!
+        // VAPID Public Key wird vom Server geladen
+        let VAPID_PUBLIC_KEY = null;
         
         async function initPushNotifications() {
             // Prüfe ob Push unterstützt wird
@@ -5713,6 +6359,24 @@
                 document.getElementById('push-not-supported')?.classList.remove('hidden');
                 document.getElementById('push-settings-container')?.classList.add('hidden');
                 return;
+            }
+            
+            // VAPID Key vom Server laden (einmalig)
+            if (!VAPID_PUBLIC_KEY) {
+                try {
+                    const cached = localStorage.getItem('lkt-vapid-key');
+                    if (cached) {
+                        VAPID_PUBLIC_KEY = cached;
+                    } else {
+                        const result = await apiGet('getVapidKey');
+                        if (result.publicKey) {
+                            VAPID_PUBLIC_KEY = result.publicKey;
+                            localStorage.setItem('lkt-vapid-key', VAPID_PUBLIC_KEY);
+                        }
+                    }
+                } catch (e) {
+                    console.log('Could not load VAPID key:', e);
+                }
             }
             
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -5774,7 +6438,7 @@
                 showToast('Benachrichtigungen aktiviert!');
                 document.getElementById('push-enable-btn').classList.add('hidden');
                 document.getElementById('push-settings').classList.remove('hidden');
-                savePushSettingsLocal();
+                loadPushSettingsLocal();
                 
                 // Test-Benachrichtigung
                 new Notification('🎺 LKT Tracker', {
@@ -5798,26 +6462,43 @@
                     await navigator.serviceWorker.ready;
                 }
                 
+                // VAPID Public Key vom Server holen
+                let vapidKey = localStorage.getItem('lkt-vapid-key');
+                if (!vapidKey) {
+                    const keyResult = await apiGet('getVapidKey');
+                    if (keyResult.publicKey) {
+                        vapidKey = keyResult.publicKey;
+                        localStorage.setItem('lkt-vapid-key', vapidKey);
+                    }
+                }
+                
+                if (!vapidKey) {
+                    console.log('No VAPID key available, using local notifications only');
+                    return;
+                }
+                
                 // Push-Subscription erstellen
                 const subscription = await registration.pushManager.subscribe({
                     userVisibleOnly: true,
-                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    applicationServerKey: urlBase64ToUint8Array(vapidKey)
                 });
                 
                 pushSubscription = subscription;
                 
                 // Subscription an Server senden
                 if (currentUser?.memberId) {
+                    const settings = JSON.parse(localStorage.getItem('lkt-notification-settings') || '{}');
                     await apiPost({
                         action: 'subscribePush',
                         memberId: currentUser.memberId,
-                        subscription: subscription.toJSON()
+                        subscription: subscription.toJSON(),
+                        settings: settings
                     });
                 }
                 
-                console.log('Push subscription registered');
+                console.log('Push subscription registered successfully');
             } catch (e) {
-                console.log('Push subscription failed, using local notifications:', e);
+                console.log('Push subscription failed, using local notifications:', e.message);
             }
         }
         
@@ -5903,6 +6584,8 @@
         function loadPushSettingsLocal() {
             const settings = JSON.parse(localStorage.getItem('lkt-notification-settings') || '{}');
             
+            const newsEl = document.getElementById('push-news');
+            if (newsEl) newsEl.checked = settings.news !== false; // Standard: an
             document.getElementById('push-event-reminder').checked = settings.eventReminder !== false;
             document.getElementById('push-reminder-time').value = settings.reminderTime || '60';
             document.getElementById('push-forum-posts').checked = settings.forumPosts || false;
@@ -5912,7 +6595,9 @@
         }
         
         function savePushSettingsLocal() {
+            const newsEl = document.getElementById('push-news');
             const settings = {
+                news: newsEl ? newsEl.checked : true,
                 eventReminder: document.getElementById('push-event-reminder').checked,
                 reminderTime: document.getElementById('push-reminder-time').value,
                 forumPosts: document.getElementById('push-forum-posts').checked,
@@ -5921,7 +6606,33 @@
             
             localStorage.setItem('lkt-notification-settings', JSON.stringify(settings));
             updateReminderTimeVisibility();
+            
+            // Push-Subscription aktualisieren wenn aktiviert
+            updatePushSubscription(settings);
+            
             showToast('Einstellungen gespeichert!');
+        }
+        
+        async function updatePushSubscription(settings) {
+            if (!currentUser) return;
+            
+            try {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (!registration) return;
+                
+                const subscription = await registration.pushManager.getSubscription();
+                if (!subscription) return;
+                
+                // Speichere Einstellungen auf Server
+                await apiPost({
+                    action: 'updatePushSettings',
+                    memberId: currentUser.memberId,
+                    settings: settings,
+                    subscription: JSON.parse(JSON.stringify(subscription))
+                });
+            } catch (e) {
+                console.log('Push settings update error:', e);
+            }
         }
         
         function updateReminderTimeVisibility() {
