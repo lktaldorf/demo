@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="app-version" content="v11">
+    <meta name="app-version" content="v12">
     <title>LKT Tracker 2026</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
@@ -219,7 +219,7 @@
     <script>
         // Cache-Buster v11: Automatisches Update bei neuer Version
         (function() {
-            var APP_VERSION = 'v11';
+            var APP_VERSION = 'v12';
             var stored = localStorage.getItem('lkt-app-version');
             if (stored && stored !== APP_VERSION) {
                 if ('caches' in window) {
@@ -318,9 +318,11 @@
             <button class="nav-tab" data-tab="qr-codes" id="nav-qr-codes">📱 QR-Codes</button>
             <button class="nav-tab" data-tab="brett-gericht">📋 Brett <span class="badge hidden" id="brett-badge-gericht">0</span></button>
             <button class="nav-tab" data-tab="members">👥 Mitglieder</button>
+            <button class="nav-tab hidden" data-tab="anzeige-gericht" id="nav-anzeige-gericht">⚖️ Anzeige</button>
             <button class="nav-tab" data-tab="anzeigen">⚖️ Anzeigen</button>
             <button class="nav-tab" data-tab="rankings">🏆 Ranglisten</button>
             <button class="nav-tab" data-tab="settings">⚙️ Einstellungen</button>
+            <button class="nav-tab" data-tab="trinkspiele-gericht">🍺 Spiele</button>
         </nav>
         
         <!-- Member Screens -->
@@ -541,7 +543,8 @@
             <!-- Trinkspiele Tab -->
             <div id="trinkspiele-tab" class="screen">
                 <div class="section-header"><h2>🍺 Trinkspiele</h2></div>
-                <iframe id="trinkspiele-iframe" src="trinkspiele.html" style="width: 100%; height: calc(100vh - 180px); border: none; border-radius: 12px; background: #1a1a2e;"></iframe>
+                <button class="btn btn-primary btn-block" onclick="openTrinkspieleFullscreen()" style="margin-bottom: 1rem;">🎮 Vollbild öffnen</button>
+                <iframe id="trinkspiele-iframe" src="trinkspiele.html" style="width: 100%; height: calc(100vh - 250px); border: none; border-radius: 12px; background: #1a1a2e;"></iframe>
             </div>
         </div>
         
@@ -683,6 +686,26 @@
                 <div id="top-attenders"></div>
                 <div class="section-header"><h2>😴 Top 10 Faulste</h2></div>
                 <div id="top-absent"></div>
+            </div>
+            
+            <!-- Anzeige erstellen Tab für Gericht -->
+            <div id="anzeige-gericht-tab" class="screen">
+                <div class="section-header"><h2>⚖️ Strafanzeige erstatten</h2></div>
+                <div class="info-box" style="background: rgba(239,68,68,0.1); border-color: var(--accent-red);">
+                    <p>🚨 Entsprechend der Satzung des Vereins wird es dem Anzeigenden ermöglicht, einen Vorschlag für ein angemessenes Strafmaß vorzuschlagen.</p>
+                </div>
+                <div class="input-group"><label>Name des Beschuldigten *</label><input type="text" id="anzeige-beschuldigter-gericht" placeholder="Wer hat was verbrochen?"></div>
+                <div class="input-group"><label>Tatbestand *</label><textarea id="anzeige-tatbestand-gericht" rows="3" placeholder="Was ist passiert? Wann, wo?"></textarea></div>
+                <div class="input-group"><label>Zeugen</label><input type="text" id="anzeige-zeugen-gericht" placeholder="Namen der Zeugen (optional)"></div>
+                <div class="input-group"><label>Strafvorschlag *</label><input type="text" id="anzeige-strafe-gericht" placeholder="z.B. 1 Kasten Bier"></div>
+                <button class="btn btn-danger btn-block" onclick="submitAnzeigeGericht()">⚖️ Anzeige einreichen</button>
+            </div>
+            
+            <!-- Trinkspiele Tab für Gericht -->
+            <div id="trinkspiele-gericht-tab" class="screen">
+                <div class="section-header"><h2>🍺 Trinkspiele</h2></div>
+                <button class="btn btn-primary btn-block" onclick="openTrinkspieleFullscreen()" style="margin-bottom: 1rem;">🎮 Vollbild öffnen</button>
+                <iframe id="trinkspiele-iframe-gericht" src="trinkspiele.html" style="width: 100%; height: calc(100vh - 250px); border: none; border-radius: 12px; background: #1a1a2e;"></iframe>
             </div>
             
             <!-- Settings Tab (NEW) -->
@@ -1673,6 +1696,16 @@
                     anzeigeNav.classList.remove('hidden');
                 } else {
                     anzeigeNav.classList.add('hidden');
+                }
+            }
+            
+            // Anzeige-erstellen Tab für Gericht Navigation
+            const anzeigeGerichtNav = document.getElementById('nav-anzeige-gericht');
+            if (anzeigeGerichtNav) {
+                if (appSettings.strafenEnabled) {
+                    anzeigeGerichtNav.classList.remove('hidden');
+                } else {
+                    anzeigeGerichtNav.classList.add('hidden');
                 }
             }
             
@@ -3193,6 +3226,59 @@
                 }
             } catch (e) { showToast('Fehler: ' + e.message, true); }
             hideLoading();
+        }
+        
+        // Anzeige erstellen für Gericht-Ansicht
+        async function submitAnzeigeGericht() {
+            const beschuldigter = document.getElementById('anzeige-beschuldigter-gericht').value.trim();
+            const tatbestand = document.getElementById('anzeige-tatbestand-gericht').value.trim();
+            const zeugen = document.getElementById('anzeige-zeugen-gericht').value.trim();
+            const strafe = document.getElementById('anzeige-strafe-gericht').value.trim();
+            
+            if (!beschuldigter || !tatbestand || !strafe) { showToast('Pflichtfelder ausfüllen!', true); return; }
+            showLoading();
+            try {
+                const result = await apiPost({
+                    action: 'submitAnzeige', melder: currentUser.name, beschuldigter: beschuldigter,
+                    tatbestand: tatbestand, zeugen: zeugen, strafe: strafe
+                });
+                if (result.error) { showToast(result.error, true); }
+                else {
+                    showToast('Anzeige eingereicht!');
+                    document.getElementById('anzeige-beschuldigter-gericht').value = '';
+                    document.getElementById('anzeige-tatbestand-gericht').value = '';
+                    document.getElementById('anzeige-zeugen-gericht').value = '';
+                    document.getElementById('anzeige-strafe-gericht').value = '';
+                    // Anzeigen-Liste aktualisieren
+                    loadAnzeigen();
+                }
+            } catch (e) { showToast('Fehler: ' + e.message, true); }
+            hideLoading();
+        }
+        
+        // Trinkspiele Vollbild öffnen
+        function openTrinkspieleFullscreen() {
+            const overlay = document.createElement('div');
+            overlay.id = 'trinkspiele-fullscreen';
+            overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:#1a1a2e;z-index:10000;display:flex;flex-direction:column;';
+            
+            const header = document.createElement('div');
+            header.style.cssText = 'padding:10px 15px;background:#16213e;display:flex;justify-content:space-between;align-items:center;';
+            header.innerHTML = '<span style="color:#ffd700;font-weight:bold;font-size:1.2rem;">🍺 Trinkspiele</span>';
+            
+            const closeBtn = document.createElement('button');
+            closeBtn.innerHTML = '✕ Zurück zur App';
+            closeBtn.style.cssText = 'background:#e74c3c;color:white;border:none;padding:8px 16px;border-radius:8px;font-weight:bold;cursor:pointer;';
+            closeBtn.onclick = function() { document.body.removeChild(overlay); };
+            header.appendChild(closeBtn);
+            
+            const iframe = document.createElement('iframe');
+            iframe.src = 'trinkspiele.html';
+            iframe.style.cssText = 'flex:1;border:none;width:100%;';
+            
+            overlay.appendChild(header);
+            overlay.appendChild(iframe);
+            document.body.appendChild(overlay);
         }
         
         // ============================================================
