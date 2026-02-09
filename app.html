@@ -6,6 +6,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="app-version" content="v11">
     <title>LKT Tracker 2026</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
@@ -215,6 +216,24 @@
         .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease, padding 0.3s ease; padding: 0 1rem; }
         .accordion-content.open { max-height: 2000px; padding: 1rem; }
     </style>
+    <script>
+        // Cache-Buster v11: Automatisches Update bei neuer Version
+        (function() {
+            var APP_VERSION = 'v11';
+            var stored = localStorage.getItem('lkt-app-version');
+            if (stored && stored !== APP_VERSION) {
+                if ('caches' in window) {
+                    caches.keys().then(function(names) {
+                        names.forEach(function(name) { caches.delete(name); });
+                    });
+                }
+                localStorage.setItem('lkt-app-version', APP_VERSION);
+                location.reload(true);
+            } else {
+                localStorage.setItem('lkt-app-version', APP_VERSION);
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="loading-overlay" id="loading"><div class="spinner"></div><div class="loading-text">Laden...</div></div>
@@ -1044,7 +1063,7 @@
         // ============================================================
         // CONFIG & STATE
         // ============================================================
-        const DEFAULT_API_URL = 'https://demo.christoph-hoher.workers.dev/';
+        const DEFAULT_API_URL = 'https://patient-wind-88af.christoph-hoher.workers.dev/';
         let API_URL = localStorage.getItem('lkt-api-url') || DEFAULT_API_URL;
         let currentUser = JSON.parse(localStorage.getItem('lkt-user') || 'null');
         let isOfflineMode = localStorage.getItem('lkt-offline') === 'true';
