@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#1a1a2e">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="app-version" content="v12">
+    <meta name="app-version" content="v13">
     <title>LKT Tracker 2026</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
@@ -219,7 +219,7 @@
     <script>
         // Cache-Buster v11: Automatisches Update bei neuer Version
         (function() {
-            var APP_VERSION = 'v12';
+            var APP_VERSION = 'v13';
             var stored = localStorage.getItem('lkt-app-version');
             if (stored && stored !== APP_VERSION) {
                 if ('caches' in window) {
@@ -1086,7 +1086,7 @@
         // ============================================================
         // CONFIG & STATE
         // ============================================================
-        const DEFAULT_API_URL = 'https://demo.christoph-hoher.workers.dev/';
+        const DEFAULT_API_URL = 'https://patient-wind-88af.christoph-hoher.workers.dev/';
         let API_URL = localStorage.getItem('lkt-api-url') || DEFAULT_API_URL;
         let currentUser = JSON.parse(localStorage.getItem('lkt-user') || 'null');
         let isOfflineMode = localStorage.getItem('lkt-offline') === 'true';
@@ -3249,8 +3249,14 @@
                     document.getElementById('anzeige-tatbestand-gericht').value = '';
                     document.getElementById('anzeige-zeugen-gericht').value = '';
                     document.getElementById('anzeige-strafe-gericht').value = '';
-                    // Anzeigen-Liste aktualisieren
-                    loadAnzeigen();
+                    // Anzeigen-Liste aktualisieren (in Gericht-View)
+                    try {
+                        const anzeigenResult = await apiGet('getAnzeigen');
+                        if (anzeigenResult.anzeigen) {
+                            allAnzeigenData = anzeigenResult.anzeigen;
+                            renderAnzeigen();
+                        }
+                    } catch (e) { console.log('Anzeigen refresh error:', e); }
                 }
             } catch (e) { showToast('Fehler: ' + e.message, true); }
             hideLoading();
@@ -3330,10 +3336,16 @@
                     apiGet('getMembers').catch(e => ({ members: [] })),
                     permissions.canManageAnzeigen && appSettings.strafenEnabled ? apiGet('getAnzeigen').catch(e => ({ anzeigen: [] })) : Promise.resolve(null),
                     apiGet('getBusStats').catch(e => ({ busStats: [] })),
-                    apiGet('getRegisterStats').catch(e => ({ registerStats: [] }))
+                    apiGet('getRegisterStats').catch(e => ({ registerStats: [] })),
+                    apiGet('getZusagen').catch(e => ({ zusagen: {} }))
                 ];
                 
-                const [membersResult, anzeigeResult, busStatsResult, regStatsResult] = await Promise.all(promises);
+                const [membersResult, anzeigeResult, busStatsResult, regStatsResult, zusagenResult] = await Promise.all(promises);
+                
+                // Zusagen laden
+                if (zusagenResult && zusagenResult.zusagen) {
+                    zusagenData = zusagenResult.zusagen;
+                }
                 
                 // Members
                 if (membersResult.members) {
